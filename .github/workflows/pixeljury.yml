@@ -24,17 +24,27 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Prepare PixelJury artifacts
+        run: mkdir -p artifacts/pixeljury
+
       - name: Run PixelJury on Cidea Lead
-        run: npm run audit:visual -- https://cidealeads.com/
+        run: npm run audit:visual -- https://cidealeads.com/ > artifacts/pixeljury/cidea-lead.json
         env:
           PIXELJURY_PROVIDER: mock
 
       - name: Run PixelJury on Cidea Marketing
-        run: npm run audit:visual -- https://cideamarketing.com/
+        run: npm run audit:visual -- https://cideamarketing.com/ > artifacts/pixeljury/cidea-marketing.json
         env:
           PIXELJURY_PROVIDER: mock
 
       - name: Run PixelJury on Cidea Consulting
-        run: npm run audit:visual -- https://cideaconsulting.com/
+        run: npm run audit:visual -- https://cideaconsulting.com/ > artifacts/pixeljury/cidea-consulting.json
+
+      - name: Upload PixelJury results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixeljury-results
+          path: artifacts/pixeljury/
         env:
           PIXELJURY_PROVIDER: mock
