@@ -18,6 +18,10 @@ Hermes → Firecrawl / Agent Reach / JEV → TypeSafe → specialist audits → 
 - Keep Cidea Lead, Marketing and Consulting strategically distinct.
 - Research once and reuse evidence where appropriate.
 
+## Validation
+
+Every implementation step is documented in GitHub and gated by typecheck and automated tests before the next integration step.
+
 ## Status
 
 Prototype foundation. Firecrawl, Agent Reach and JEV adapters are present, but live external/browser runtimes must be configured before use.
