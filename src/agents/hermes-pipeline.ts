@@ -10,9 +10,10 @@ import type { ImprovementPlan } from "../domain/improvement-plan.js";
 import type { WebsiteResearch } from "../domain/website-research.js";
 import type { CideaTarget, AuditFinding } from "../domain/website-audit.js";
 import { enrichWithExternalResearch } from "./external-research.js";
+import { pixelJuryEnabled, runPixelJury } from "../integrations/pixeljury.js";
 
 export type HermesPipelineInput={target:CideaTarget;websiteUrl:string;findings?:AuditFinding[];candidateActions?:unknown[];enableFirecrawl?:boolean;agentReach?:AgentReachClient;browser?:JEVBrowserClient;browserActions?:unknown[]};
-export type HermesPipelineResult={research:WebsiteResearch;hermes:Awaited<ReturnType<typeof reasonWithHermes>>;improvementPlan:ImprovementPlan;browser?:Awaited<ReturnType<typeof runBrowserJourney>>};
+export type HermesPipelineResult={research:WebsiteResearch;hermes:Awaited<ReturnType<typeof reasonWithHermes>>;improvementPlan:ImprovementPlan;browser?:Awaited<ReturnType<typeof runBrowserJourney>>;pixelJury?:Awaited<ReturnType<typeof runPixelJury>>};
 
 export async function runHermesPipeline(input:HermesPipelineInput):Promise<HermesPipelineResult>{
   const firecrawl=input.enableFirecrawl===false?undefined:createFirecrawlClient();
@@ -23,10 +24,13 @@ export async function runHermesPipeline(input:HermesPipelineInput):Promise<Herme
   const researchWithBrowserEvidence:WebsiteResearch={...research,sources:[...research.sources,...browserSources],signals:[...research.signals,...browserSignals]};
   const agentReach=input.agentReach??createAgentReachClient();
   const enrichedResearch=await enrichWithExternalResearch(researchWithBrowserEvidence,agentReach);
-  const findings=[...(input.findings??[]),...(browser?.summary.findings??[])];
-  const hermes=await reasonWithHermes(enrichedResearch,findings,createHermesLLMClient());
+  const pixelJury=pixelJuryEnabled()?await runPixelJury(input.websiteUrl):undefined;
+  const pixelJurySources=pixelJury?[{url:input.websiteUrl,sourceType:"other" as const,collectedAt:pixelJury.collectedAt,excerpt:pixelJury.critique.slice(0,2000)}]:[];
+  const researchWithPixelJury:WebsiteResearch={...enrichedResearch,sources:[...enrichedResearch.sources,...pixelJurySources]};
+  const findings=[...(input.findings??[]),...(browser?.summary.findings??[]),...(pixelJury?.findings??[])];
+  const hermes=await reasonWithHermes(researchWithPixelJury,findings,createHermesLLMClient());
   const generatedCandidates=findingsToImprovementCandidates(enrichedResearch,findings);
   const candidateActions=[...generatedCandidates,...(input.candidateActions??[])];
-  const improvementPlan=createImprovementPlan(enrichedResearch,candidateActions);
-  return{research:enrichedResearch,hermes,improvementPlan,browser};
+  const improvementPlan=createImprovementPlan(researchWithPixelJury,candidateActions);
+  return{research:researchWithPixelJury,hermes,improvementPlan,browser,pixelJury};
 }
