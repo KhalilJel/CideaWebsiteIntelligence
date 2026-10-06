@@ -8,7 +8,7 @@ Gullkornet finds the customer. Cidea Website Intelligence finds what Cidea can s
 
 ## Pipeline
 
-Hermes → Firecrawl / Agent Reach / JEV → TypeSafe → specialist audits → Improvement Director → coding agent → re-audit → human approval.
+Hermes → Firecrawl / Agent Reach / JEV / PixelJury → TypeSafe → specialist audits → Improvement Director → coding agent → re-audit → human approval.
 
 ## Rules
 
