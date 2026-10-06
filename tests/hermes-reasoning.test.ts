@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { reasonWithHermes } from "../src/agents/hermes-reasoning.js";
+import { runHermesPipeline } from "../src/agents/hermes-pipeline.js";
 
 test("Hermes evidence-only mode never invents evidence", async () => {
   const result = await reasonWithHermes(
@@ -46,4 +47,28 @@ test("Hermes accepts a valid structured LLM response", async () => {
   );
   assert.equal(result.mode, "llm");
   assert.equal(result.summary, "Evidence is insufficient for broad claims.");
+});
+
+test("Hermes pipeline includes validated JEV browser evidence", async () => {
+  const result = await runHermesPipeline({
+    target: "CideaLead",
+    websiteUrl: "https://example.com",
+    enableFirecrawl: false,
+    browser: {
+      execute: async () => [{
+        url: "https://example.com/contact",
+        action: { type: "click", target: "#contact" },
+        result: "failed",
+        observation: "Contact interaction failed",
+        collectedAt: new Date().toISOString()
+      }]
+    },
+    browserActions: [{ type: "click", target: "#contact" }]
+  });
+
+  assert.equal(result.browser?.summary.failureCount, 1);
+  assert.ok(result.research.sources.some(source => source.sourceType === "browser"));
+  assert.ok(result.research.signals.some(signal => signal.category === "UX"));
+  assert.equal(result.hermes.mode, "evidence_only");
+  assert.equal(result.hermes.priorities[0]?.category, "UX");
 });
