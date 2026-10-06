@@ -1,0 +1,29 @@
+name: Cidea Initial Intelligence Audit
+
+on:
+  push:
+    branches:
+      - "feat/**"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      PIXELJURY_ENABLED: "true"
+      PIXELJURY_PROVIDER: "mock"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: mkdir -p artifacts/cidea-initial-audit
+      - run: npm run --silent audit:website:intelligence -- https://cidealeads.com/ "CideaLead" > artifacts/cidea-initial-audit/cidea-lead.json
+      - run: npm run --silent audit:website:intelligence -- https://cideamarketing.com/ "CideaMarketing" > artifacts/cidea-initial-audit/cidea-marketing.json
+      - run: npm run --silent audit:website:intelligence -- https://cideaconsulting.com/ "CideaConsulting" > artifacts/cidea-initial-audit/cidea-consulting.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cidea-initial-intelligence-audit
+          path: artifacts/cidea-initial-audit/*.json
