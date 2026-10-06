@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { cideaTargetSchema, auditCategorySchema } from "./website-audit.js";
+import { websiteTargetSchema, auditCategorySchema } from "./website-audit.js";
 
 export const codingTaskSchema = z.object({
   id: z.string().min(1),
-  target: cideaTargetSchema,
+  target: websiteTargetSchema,
   websiteUrl: z.string().url(),
   sourceActionId: z.string().min(1),
   priority: z.enum(["P0", "P1", "P2", "P3"]),
@@ -31,7 +31,7 @@ export function improvementActionToCodingTask(
     expectedImpact: "low" | "medium" | "high";
     requiresHumanApproval: boolean;
   },
-  target: z.infer<typeof cideaTargetSchema>,
+  target: z.infer<typeof websiteTargetSchema>,
   websiteUrl: string
 ): CodingTask {
   return codingTaskSchema.parse({
@@ -60,7 +60,7 @@ export function improvementActionToCodingTask(
       "No production deployment.",
       "No DNS or MX changes.",
       "Do not redesign unrelated sections.",
-      "Do not change the strategic positioning of the Cidea website."
+      "Do not change the strategic positioning of the website."
     ],
     requiresHumanApproval: true
   });
