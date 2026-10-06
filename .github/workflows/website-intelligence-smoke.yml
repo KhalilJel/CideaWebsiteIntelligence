@@ -1,0 +1,26 @@
+name: Website Intelligence Smoke Audits
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: mkdir -p artifacts/website-intelligence
+      - run: npm run --silent audit:website:intelligence -- https://example.com "Example Website" > artifacts/website-intelligence/example.json
+      - run: npm run --silent audit:website:intelligence -- https://www.mozilla.org/ "Mozilla" > artifacts/website-intelligence/mozilla.json
+      - run: npm run --silent audit:website:intelligence -- https://www.python.org/ "Python" > artifacts/website-intelligence/python.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: website-intelligence-smoke
+          path: artifacts/website-intelligence/*.json
