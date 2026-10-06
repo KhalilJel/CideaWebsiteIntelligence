@@ -1,4 +1,5 @@
 import { createFirecrawlClient } from "../integrations/firecrawl.js";
+import { createAgentReachClient, type AgentReachClient } from "../integrations/agent-reach.js";
 import { createHermesLLMClient } from "../integrations/hermes-llm.js";
 import type { JEVBrowserClient } from "../integrations/jev-browser.js";
 import { hermesResearch } from "./hermes-research.js";
@@ -8,7 +9,6 @@ import { runBrowserJourney } from "./browser-journey.js";
 import type { ImprovementPlan } from "../domain/improvement-plan.js";
 import type { WebsiteResearch } from "../domain/website-research.js";
 import type { CideaTarget, AuditFinding } from "../domain/website-audit.js";
-import type { AgentReachClient } from "../integrations/agent-reach.js";
 import { enrichWithExternalResearch } from "./external-research.js";
 
 export type HermesPipelineInput = {
@@ -64,9 +64,10 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     signals: [...research.signals, ...browserSignals]
   };
 
+  const agentReach = input.agentReach ?? createAgentReachClient();
   const enrichedResearch = await enrichWithExternalResearch(
     researchWithBrowserEvidence,
-    input.agentReach
+    agentReach
   );
 
   const findings = [
