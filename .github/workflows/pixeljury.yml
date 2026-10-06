@@ -1,0 +1,41 @@
+name: PixelJury Visual Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  visual-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run PixelJury on Cidea Lead
+        run: npm run audit:visual -- https://cidealeads.com/
+        env:
+          PIXELJURY_PROVIDER: mock
+
+      - name: Run PixelJury on Cidea Marketing
+        run: npm run audit:visual -- https://cideamarketing.com/
+        env:
+          PIXELJURY_PROVIDER: mock
+
+      - name: Run PixelJury on Cidea Consulting
+        run: npm run audit:visual -- https://cideaconsulting.com/
+        env:
+          PIXELJURY_PROVIDER: mock
