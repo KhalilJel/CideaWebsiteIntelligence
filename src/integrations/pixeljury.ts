@@ -72,3 +72,7 @@ export async function runPixelJury(url:string,provider=process.env.PIXELJURY_PRO
     await rm(workdir,{recursive:true,force:true});
   }
 }
+
+export function pixelJuryEnabled():boolean{
+  return process.env.PIXELJURY_ENABLED==="true";
+}
