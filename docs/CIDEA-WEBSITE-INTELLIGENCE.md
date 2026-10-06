@@ -12,12 +12,29 @@ Gullkornet → qualified lead → Cidea Website Intelligence → audit/research/
 
 Hermes is the top-level orchestrator. Firecrawl is the website extraction layer. Agent Reach provides external context. JEV handles interactive browser execution. TypeSafe validates browser data at both input and output boundaries. Specialist agents reason over evidence.
 
+### Firecrawl
+
+- FIRECRAWL_API_KEY enables the Firecrawl adapter.
+- FIRECRAWL_BASE_URL is optional and defaults to Firecrawl's API base.
+- The adapter is disabled when no API key is configured.
+- Requests time out after 20 seconds.
+
+### Agent Reach
+
+Agent Reach is treated as a capability/CLI layer rather than a vendor-specific HTTP API.
+
+- AGENT_REACH_ENABLED=true enables the adapter.
+- AGENT_REACH_BIN optionally selects the executable path and defaults to agent-reach.
+- The adapter invokes the CLI without a shell and enforces a 30 second timeout.
+- Search results are converted into typed evidence before entering research.
+- If Agent Reach is unavailable or fails, Hermes does not invent external evidence. The failure remains an unresolved research question.
+
 ### JEV runtime
 
 The repository contains a safe HTTP adapter controlled by environment configuration:
 
-- `JEV_BROWSER_BASE_URL` enables the adapter.
-- `JEV_BROWSER_API_KEY` is optional for bearer authentication.
+- JEV_BROWSER_BASE_URL enables the adapter.
+- JEV_BROWSER_API_KEY is optional for bearer authentication.
 - The adapter is disabled when no base URL is configured.
 - Requests time out after 30 seconds.
 - JEV observations are never trusted directly. TypeSafe validates them before they enter the audit layer.
@@ -25,19 +42,16 @@ The repository contains a safe HTTP adapter controlled by environment configurat
 
 The exact JEV endpoint contract is intentionally kept behind the adapter. No vendor-specific runtime is assumed or activated until the actual JEV runtime is connected.
 
-### Hermes browser flow
+### Hermes research flow
 
-When a browser client and browser actions are supplied:
+1. Firecrawl extracts the target website when configured.
+2. JEV can execute explicit interactive journeys when configured.
+3. TypeSafe validates browser actions and observations.
+4. Agent Reach can add public external context.
+5. Hermes reasons over the combined evidence.
+6. The Improvement Director produces a review-only plan.
 
-1. TypeSafe validates the requested browser actions.
-2. JEV executes the journey.
-3. TypeSafe validates the returned observations.
-4. Failed or blocked interactions become evidence-backed UX findings.
-5. Browser sources and signals are added to the research set.
-6. Hermes reasons over the combined website, research and browser evidence.
-7. The improvement plan remains review-only.
-
-Without a configured JEV client or actions, the browser layer remains disabled.
+No external source is treated as fact without a source URL and collected evidence.
 
 ## Safety
 
