@@ -1,0 +1,23 @@
+{
+  "name": "cidea-website-intelligence",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "audit:website": "tsx src/cli/audit-website-engine.ts",
+    "audit:all": "tsx src/cli/audit-all-cidea-sites.ts",
+    "audit:website:full": "tsx src/cli/audit-website-full.ts",
+    "audit:complete": "tsx src/cli/audit-complete.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
