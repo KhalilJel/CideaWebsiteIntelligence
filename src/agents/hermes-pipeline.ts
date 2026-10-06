@@ -26,10 +26,11 @@ export async function runHermesPipeline(input:HermesPipelineInput):Promise<Herme
   const enrichedResearch=await enrichWithExternalResearch(researchWithBrowserEvidence,agentReach);
   const pixelJury=pixelJuryEnabled()?await runPixelJury(input.websiteUrl):undefined;
   const pixelJurySources=pixelJury?[{url:input.websiteUrl,sourceType:"other" as const,collectedAt:pixelJury.collectedAt,excerpt:pixelJury.critique.slice(0,2000)}]:[];
-  const researchWithPixelJury:WebsiteResearch={...enrichedResearch,sources:[...enrichedResearch.sources,...pixelJurySources]};
+  const pixelJurySignals=pixelJury?[{category:"DESIGN" as const,claim:`PixelJury visual QA returned a score of ${pixelJury.score??"unknown"} for the page.`,evidence:pixelJury.critique.slice(0,2000),sourceUrls:[input.websiteUrl],confidence:.8}]:[];
+  const researchWithPixelJury:WebsiteResearch={...enrichedResearch,sources:[...enrichedResearch.sources,...pixelJurySources],signals:[...enrichedResearch.signals,...pixelJurySignals]};
   const findings=[...(input.findings??[]),...(browser?.summary.findings??[]),...(pixelJury?.findings??[])];
   const hermes=await reasonWithHermes(researchWithPixelJury,findings,createHermesLLMClient());
-  const generatedCandidates=findingsToImprovementCandidates(enrichedResearch,findings);
+  const generatedCandidates=findingsToImprovementCandidates(researchWithPixelJury,findings);
   const candidateActions=[...generatedCandidates,...(input.candidateActions??[])];
   const improvementPlan=createImprovementPlan(researchWithPixelJury,candidateActions);
   return{research:researchWithPixelJury,hermes,improvementPlan,browser,pixelJury};
