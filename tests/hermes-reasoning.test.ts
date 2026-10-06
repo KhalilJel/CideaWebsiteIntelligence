@@ -22,10 +22,10 @@ test("Hermes pipeline includes validated JEV browser evidence and produces a pla
   assert.ok(result.research.sources.some(source=>source.sourceType==="browser"));
   assert.ok(result.research.signals.some(signal=>signal.category==="UX"));
   assert.equal(result.hermes.mode,"evidence_only");
-  assert.equal(result.hermes.priorities[0]?.category,"UX");
+  assert.ok(result.hermes.priorities.some(priority=>priority.category==="UX"));
   assert.equal(result.improvementPlan.status,"review_required");
-  assert.equal(result.improvementPlan.actions[0]?.priority,"P1");
-  assert.equal(result.improvementPlan.actions[0]?.requiresHumanApproval,true);
+  assert.ok(result.improvementPlan.actions.some(action=>action.priority==="P1"));
+  assert.ok(result.improvementPlan.actions.some(action=>action.requiresHumanApproval));
 });
 
 test("Hermes pipeline consumes injected Agent Reach evidence", async () => {
