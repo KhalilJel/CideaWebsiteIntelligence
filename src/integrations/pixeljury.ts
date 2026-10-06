@@ -43,18 +43,23 @@ function categoryFromText(text:string):AuditFinding["category"]{
 
 function findingsFromCritique(critique:string,url:string):AuditFinding[]{
   const lines=critique.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-  const actionable=lines.filter(line=>/^(?:[-*x✓]|problem|hard fail|issue|warning)/i.test(line)||/contrast|overflow|touch target|tiny text|typograph|hierarchy|spacing|polish|generic|gradient/i.test(line));
-  return actionable.slice(0,20).map((line,index)=>({
-    category:categoryFromText(line),
-    severity:/hard fail|critical|overflow|contrast/i.test(line)?"high":/warning|problem|issue/i.test(line)?"medium":"low",
-    title:`PixelJury visual finding ${index+1}`,
-    observation:line.replace(/^[-*x✓]\s*/,"").slice(0,1000),
-    recommendation:"Review the PixelJury finding and apply the corresponding visual or accessibility improvement if validated.",
-    evidence:[{sourceUrl:url,observation:line.replace(/^[-*x✓]\s*/,"").slice(0,1000)}],
-    confidence:0.8
-  }));
+  const actionable=lines.filter(line=>{
+    if(/^#/.test(line)||/^\*\*https?:\/\//.test(line)||/^---$/.test(line)||/^\|/.test(line)||/^Scored against/.test(line)) return false;
+    return /hard fail|critical|contrast|overflow|touch target|tiny text|body text|typograph|hierarchy|spacing|polish|generic|gradient|emoji|card pattern/i.test(line);
+  });
+  return actionable.slice(0,20).map((line,index)=>{
+    const high=/hard fail|critical|overflow|contrast|touch target|body text/i.test(line);
+    return {
+      category:categoryFromText(line),
+      severity:high?"high":/warning|problem|issue/i.test(line)?"medium":"low",
+      title:`PixelJury visual finding ${index+1}`,
+      observation:line.replace(/^[-*x✓]\s*/,"").slice(0,1000),
+      recommendation:"Review the PixelJury finding and apply the corresponding visual or accessibility improvement if validated.",
+      evidence:[{sourceUrl:url,observation:line.replace(/^[-*x✓]\s*/,"").slice(0,1000)}],
+      confidence:0.8
+    };
+  });
 }
-
 export async function runPixelJury(url:string,provider=process.env.PIXELJURY_PROVIDER??"mock",runner:CommandRunner=runCommand):Promise<PixelJuryResult>{
   new URL(url);
   const workdir=await mkdtemp(join(tmpdir(),"cidea-pixeljury-"));
