@@ -24,8 +24,12 @@ Every implementation step is documented in GitHub and gated by typecheck and aut
 
 ## Status
 
-Prototype foundation. Firecrawl, Agent Reach and JEV adapters are present, but live external/browser runtimes must be configured before use.
+Prototype foundation. The research, browser validation and evidence-to-improvement layers are implemented. Live external/browser runtimes must be configured before use.
 
 ## Research Layer
 
 Firecrawl is optional and Agent Reach is an isolated CLI capability adapter. Both remain disabled unless explicitly configured.
+
+## Improvement Layer
+
+Deterministic specialist findings are converted into ranked P0–P3 improvement actions according to the selected Cidea target. Every generated action carries source evidence, confidence and human approval requirements.
