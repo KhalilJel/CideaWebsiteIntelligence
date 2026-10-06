@@ -2,10 +2,12 @@ import { createFirecrawlClient } from "../integrations/firecrawl.js";
 import { createAgentReachClient, type AgentReachClient } from "../integrations/agent-reach.js";
 import { createHermesLLMClient } from "../integrations/hermes-llm.js";
 import type { JEVBrowserClient } from "../integrations/jev-browser.js";
+import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
 import { reasonWithHermes } from "./hermes-reasoning.js";
 import { createImprovementPlan, findingsToImprovementCandidates } from "./improvement-director.js";
 import { runBrowserJourney } from "./browser-journey.js";
+import { runDeterministicSpecialistAudits } from "./specialist-audits.js";
 import type { ImprovementPlan } from "../domain/improvement-plan.js";
 import type { WebsiteResearch } from "../domain/website-research.js";
 import type { WebsiteTarget, AuditFinding } from "../domain/website-audit.js";
@@ -30,11 +32,19 @@ export type HermesPipelineResult = {
   hermes: Awaited<ReturnType<typeof reasonWithHermes>>;
   improvementPlan: ImprovementPlan;
   codingTasks: CodingTask[];
+  baseline: Awaited<ReturnType<typeof auditCandidate>>;
   browser?: Awaited<ReturnType<typeof runBrowserJourney>>;
   pixelJury?: Awaited<ReturnType<typeof runPixelJury>>;
 };
 
 export async function runHermesPipeline(input: HermesPipelineInput): Promise<HermesPipelineResult> {
+  const baseline = await auditCandidate({
+    companyName: input.target,
+    websiteUrl: input.websiteUrl,
+    sourceUrl: input.websiteUrl
+  });
+  const specialistFindings = runDeterministicSpecialistAudits(baseline);
+
   const firecrawl = input.enableFirecrawl === false ? undefined : createFirecrawlClient();
   const research = await hermesResearch(
     { target: input.target, websiteUrl: input.websiteUrl },
@@ -64,7 +74,17 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
 
   const researchWithBrowserEvidence: WebsiteResearch = {
     ...research,
-    sources: [...research.sources, ...browserSources],
+    sources: [
+      ...research.sources,
+      {
+        url: baseline.finalUrl ?? input.websiteUrl,
+        title: baseline.title,
+        sourceType: "website",
+        collectedAt: baseline.checkedAt,
+        excerpt: baseline.metaDescription
+      },
+      ...browserSources
+    ],
     signals: [...research.signals, ...browserSignals]
   };
 
@@ -94,6 +114,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   };
 
   const findings = [
+    ...specialistFindings,
     ...(input.findings ?? []),
     ...(browser?.summary.findings ?? []),
     ...(pixelJury?.findings ?? [])
@@ -115,6 +136,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     hermes,
     improvementPlan,
     codingTasks,
+    baseline,
     browser,
     pixelJury
   };
