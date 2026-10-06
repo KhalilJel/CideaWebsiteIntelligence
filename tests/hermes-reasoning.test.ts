@@ -72,3 +72,31 @@ test("Hermes pipeline includes validated JEV browser evidence", async () => {
   assert.equal(result.hermes.mode, "evidence_only");
   assert.equal(result.hermes.priorities[0]?.category, "UX");
 });
+
+test("Hermes pipeline consumes injected Agent Reach evidence", async () => {
+  const result = await runHermesPipeline({
+    target: "CideaMarketing",
+    websiteUrl: "https://example.com",
+    enableFirecrawl: false,
+    agentReach: {
+      read: async () => ({
+        sourceUrl: "https://reddit.com/r/example",
+        platform: "reddit",
+        title: "Example discussion",
+        excerpt: "Public customer discussion",
+        collectedAt: new Date().toISOString()
+      }),
+      search: async () => [{
+        sourceUrl: "https://reddit.com/r/example",
+        platform: "reddit",
+        title: "Example discussion",
+        excerpt: "Public customer discussion",
+        collectedAt: new Date().toISOString()
+      }]
+    }
+  });
+
+  assert.ok(result.research.sources.some(source => source.sourceType === "social"));
+  assert.ok(result.research.sources.some(source => source.url === "https://reddit.com/r/example"));
+  assert.ok(!result.research.unresolvedQuestions.includes("Run external context research before making competitor or market claims."));
+});
