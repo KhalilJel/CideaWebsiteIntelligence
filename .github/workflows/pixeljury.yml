@@ -39,6 +39,8 @@ jobs:
 
       - name: Run PixelJury on Cidea Consulting
         run: npm run --silent audit:visual -- https://cideaconsulting.com/ > artifacts/pixeljury/cidea-consulting.json
+        env:
+          PIXELJURY_PROVIDER: mock
 
       - name: Upload PixelJury results
         if: always()
@@ -46,5 +48,3 @@ jobs:
         with:
           name: pixeljury-results
           path: artifacts/pixeljury/
-        env:
-          PIXELJURY_PROVIDER: mock
