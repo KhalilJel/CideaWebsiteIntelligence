@@ -28,17 +28,17 @@ jobs:
         run: mkdir -p artifacts/pixeljury
 
       - name: Run PixelJury on Cidea Lead
-        run: npm run audit:visual -- https://cidealeads.com/ > artifacts/pixeljury/cidea-lead.json
+        run: npm run --silent audit:visual -- https://cidealeads.com/ > artifacts/pixeljury/cidea-lead.json
         env:
           PIXELJURY_PROVIDER: mock
 
       - name: Run PixelJury on Cidea Marketing
-        run: npm run audit:visual -- https://cideamarketing.com/ > artifacts/pixeljury/cidea-marketing.json
+        run: npm run --silent audit:visual -- https://cideamarketing.com/ > artifacts/pixeljury/cidea-marketing.json
         env:
           PIXELJURY_PROVIDER: mock
 
       - name: Run PixelJury on Cidea Consulting
-        run: npm run audit:visual -- https://cideaconsulting.com/ > artifacts/pixeljury/cidea-consulting.json
+        run: npm run --silent audit:visual -- https://cideaconsulting.com/ > artifacts/pixeljury/cidea-consulting.json
 
       - name: Upload PixelJury results
         if: always()
