@@ -1,4 +1,5 @@
 name: Cidea Initial Intelligence Audit
+# Run the full Cidea baseline after intelligence engine changes.
 
 on:
   push:
