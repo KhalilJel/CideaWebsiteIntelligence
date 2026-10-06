@@ -27,10 +27,10 @@ function runCommand(command:string,args:string[],cwd:string,timeoutMs=120000):Pr
   return new Promise((resolve,reject)=>{
     const child=spawn(command,args,{cwd,shell:false,stdio:["ignore","pipe","pipe"]});
     let stderr="";
-    const timer=setTimeout(()=>{child.kill("SIGTERM");reject(new Error(\`PixelJury timed out after \${timeoutMs}ms.\`));},timeoutMs);
+    const timer=setTimeout(()=>{child.kill("SIGTERM");reject(new Error(`PixelJury timed out after ${timeoutMs}ms.`));},timeoutMs);
     child.stderr.on("data",chunk=>{stderr+=chunk.toString();});
     child.on("error",error=>{clearTimeout(timer);reject(error);});
-    child.on("close",code=>{clearTimeout(timer);if(code===0)resolve();else reject(new Error(\`PixelJury exited with code \${code}: \${stderr.slice(0,1000)}\`));});
+    child.on("close",code=>{clearTimeout(timer);if(code===0)resolve();else reject(new Error(`PixelJury exited with code ${code}: ${stderr.slice(0,1000)}`));});
   });
 }
 
@@ -47,7 +47,7 @@ function findingsFromCritique(critique:string,url:string):AuditFinding[]{
   return actionable.slice(0,20).map((line,index)=>({
     category:categoryFromText(line),
     severity:/hard fail|critical|overflow|contrast/i.test(line)?"high":/warning|problem|issue/i.test(line)?"medium":"low",
-    title:\`PixelJury visual finding \${index+1}\`,
+    title:`PixelJury visual finding ${index+1}`,
     observation:line.replace(/^[-*x✓]\s*/,"").slice(0,1000),
     recommendation:"Review the PixelJury finding and apply the corresponding visual or accessibility improvement if validated.",
     evidence:[{sourceUrl:url,observation:line.replace(/^[-*x✓]\s*/,"").slice(0,1000)}],
