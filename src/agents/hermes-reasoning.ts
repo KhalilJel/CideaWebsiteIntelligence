@@ -17,10 +17,10 @@ const system = [
   "If evidence is insufficient, put the question in unresolvedQuestions instead of guessing."
 ].join(" ");
 
-function evidenceOnly(research: WebsiteResearch, findings: AuditFinding[]): HermesDecision {
+const SEVERITY_RANK: Record<AuditFinding["severity"], number> = { critical: 0, high: 1, medium: 2, low: 3 };\n\nfunction evidenceOnly(research: WebsiteResearch, findings: AuditFinding[]): HermesDecision {
   const priorities = findings
     .slice()
-    .sort((a,b) => ({critical:0,high:1,medium:2,low:3}[a.severity]-{critical:0,high:1,medium:2,low:3}[b.severity]) || b.confidence-a.confidence)
+    .sort((a,b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.confidence - a.confidence)
     .slice(0, 5)
     .map(f => ({ category:f.category, reason:f.title, evidenceUrls:f.evidence.map(e=>e.sourceUrl) }));
   return { summary: findings.length ? `Found ${findings.length} evidence-backed improvement opportunities.` : "No deterministic issues were found; deeper research is still required before making broad claims.", priorities, unresolvedQuestions: research.unresolvedQuestions, mode:"evidence_only" };
