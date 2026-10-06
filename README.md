@@ -25,3 +25,7 @@ Every implementation step is documented in GitHub and gated by typecheck and aut
 ## Status
 
 Prototype foundation. Firecrawl, Agent Reach and JEV adapters are present, but live external/browser runtimes must be configured before use.
+
+## Research Layer
+
+Firecrawl is optional and Agent Reach is an isolated CLI capability adapter. Both remain disabled unless explicitly configured.
