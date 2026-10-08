@@ -19,3 +19,19 @@ test("turns an improvement action into a guarded coding task", () => {
   assert.ok(task.nonGoals.includes("No DNS or MX changes."));
   assert.ok(task.acceptanceCriteria.length > 0);
 });
+
+test("Improvement Director emits alternatives and a coherent decision", async () => {
+  const { findingsToImprovementCandidates, createImprovementPlan } = await import("../src/agents/improvement-director.js");
+  const research = { target: "CideaLead", websiteUrl: "https://example.com", collectedAt: new Date().toISOString(), sources: [], signals: [], unresolvedQuestions: [] } as any;
+  const candidates = findingsToImprovementCandidates(research, [{
+    category: "DESIGN", severity: "medium", title: "Repeated cards", observation: "Cards look visually repetitive", recommendation: "Strengthen hierarchy",
+    evidence: [{ sourceUrl: "https://example.com", observation: "Repeated cards" }], confidence: 0.9
+  }]);
+  const plan = createImprovementPlan(research, candidates);
+  const action = plan.actions[0];
+  assert.ok(action);
+  assert.ok(action.alternatives.length >= 2);
+  assert.ok(action.alternatives.some(alternative => alternative.id === action.decision.selectedAlternativeId));
+  assert.deepEqual(new Set(action.decision.rejectedAlternativeIds).size, action.decision.rejectedAlternativeIds.length);
+  assert.ok(action.decision.reasoning.length > 0);
+});
