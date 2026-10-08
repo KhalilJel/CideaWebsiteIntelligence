@@ -4,7 +4,7 @@ import { createHermesLLMClient } from "../integrations/hermes-llm.js";
 import type { JEVBrowserClient } from "../integrations/jev-browser.js";
 import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
-import { reasonWithHermes, imagineWithHermes } from "./hermes-reasoning.js";
+import { reasonWithHermes, imagineWithHermes, decideAllWithHermes } from "./hermes-reasoning.js";
 import { createImprovementPlan, findingsToImprovementCandidates } from "./improvement-director.js";
 import { runBrowserJourney } from "./browser-journey.js";
 import { runDeterministicSpecialistAudits } from "./specialist-audits.js";
@@ -31,6 +31,7 @@ export type HermesPipelineResult = {
   research: WebsiteResearch;
   hermes: Awaited<ReturnType<typeof reasonWithHermes>>;
   imagine: Awaited<ReturnType<typeof imagineWithHermes>>;
+  decide: Awaited<ReturnType<typeof decideAllWithHermes>>;
   improvementPlan: ImprovementPlan;
   codingTasks: CodingTask[];
   baseline: Awaited<ReturnType<typeof auditCandidate>>;
@@ -132,11 +133,18 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     findings,
     hermesClient
   );
+  const decide = await decideAllWithHermes(
+    researchWithPixelJury,
+    findings,
+    imagine.proposals,
+    hermesClient
+  );
 
   const generatedCandidates = findingsToImprovementCandidates(
     researchWithPixelJury,
     findings,
-    imagine.proposals
+    imagine.proposals,
+    decide
   );
   const candidateActions = [...generatedCandidates, ...(input.candidateActions ?? [])];
   const improvementPlan = createImprovementPlan(researchWithPixelJury, candidateActions);
@@ -146,6 +154,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     research: researchWithPixelJury,
     hermes,
     imagine,
+    decide,
     improvementPlan,
     codingTasks,
     baseline,
