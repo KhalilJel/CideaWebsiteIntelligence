@@ -1,11 +1,7 @@
 import type { WebsiteResearch } from "../domain/website-research.js";
 import type { AuditFinding } from "../domain/website-audit.js";
 import type { HermesLLMClient } from "../integrations/hermes-llm.js";
-import type {
-  DesignAlternative,
-  ImprovementAction,
-  decisionEvaluationSchema
-} from "../domain/improvement-plan.js";
+import { decisionEvaluationSchema, type DesignAlternative } from "../domain/improvement-plan.js";
 
 export type HermesDecision = {
   summary: string;
