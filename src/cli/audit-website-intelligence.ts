@@ -23,6 +23,7 @@ const result = await runHermesPipeline({
 });
 
 const cursor = result.cursorExecution;
+const validation = result.validation;
 
 console.log(JSON.stringify({
   target,
@@ -44,5 +45,17 @@ console.log(JSON.stringify({
         status: "not_run",
         enabled: cursorEnabled,
         repositoryUrl: cursorRepositoryUrl ?? null
+      },
+  validation: validation
+    ? {
+        status: validation.status,
+        checks: validation.checks.map(check => ({
+          name: check.name,
+          status: check.status,
+          summary: check.summary
+        }))
+      }
+    : {
+        status: "not_run"
       }
 }, null, 2));
