@@ -14,6 +14,7 @@ import type { WebsiteTarget, AuditFinding } from "../domain/website-audit.js";
 import { enrichWithExternalResearch } from "./external-research.js";
 import { pixelJuryEnabled, runPixelJury } from "../integrations/pixeljury.js";
 import { improvementPlanToCodingTasks } from "./coding-task-generator.js";
+import { executeCodingTaskWithCursor, type CursorExecutionResult } from "./cursor-execution.js";
 import type { CodingTask } from "../domain/coding-task.js";
 
 export type HermesPipelineInput = {
@@ -25,6 +26,11 @@ export type HermesPipelineInput = {
   agentReach?: AgentReachClient;
   browser?: JEVBrowserClient;
   browserActions?: unknown[];
+  cursor?: {
+    repositoryUrl: string;
+    ref?: string;
+    enabled?: boolean;
+  };
 };
 
 export type HermesPipelineResult = {
@@ -37,6 +43,7 @@ export type HermesPipelineResult = {
   baseline: Awaited<ReturnType<typeof auditCandidate>>;
   browser?: Awaited<ReturnType<typeof runBrowserJourney>>;
   pixelJury?: Awaited<ReturnType<typeof runPixelJury>>;
+  cursorExecution?: CursorExecutionResult;
 };
 
 export async function runHermesPipeline(input: HermesPipelineInput): Promise<HermesPipelineResult> {
@@ -149,6 +156,12 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   const candidateActions = [...generatedCandidates, ...(input.candidateActions ?? [])];
   const improvementPlan = createImprovementPlan(researchWithPixelJury, candidateActions);
   const codingTasks = improvementPlanToCodingTasks(improvementPlan);
+  const cursorExecution = input.cursor?.enabled !== false && input.cursor?.repositoryUrl && codingTasks[0]
+    ? await executeCodingTaskWithCursor(codingTasks[0], {
+        repositoryUrl: input.cursor.repositoryUrl,
+        ref: input.cursor.ref
+      })
+    : undefined;
 
   return {
     research: researchWithPixelJury,
@@ -159,6 +172,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     codingTasks,
     baseline,
     browser,
-    pixelJury
+    pixelJury,
+    cursorExecution
   };
 }
