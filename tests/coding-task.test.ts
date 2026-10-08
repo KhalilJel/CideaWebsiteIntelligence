@@ -31,6 +31,10 @@ test("turns an improvement action into a guarded coding task", () => {
 
   assert.equal(task.id, "coding-finding-1-design");
   assert.equal(task.requiresHumanApproval, true);
+  assert.equal(task.selectedAlternativeId, "minimal");
+  assert.equal(task.selectedAlternativeLabel, "Minimal refinement");
+  assert.equal(task.objective, "Improve readability without changing the site's strategic purpose.");
+  assert.match(task.decisionReasoning, /lowest complexity/);
   assert.ok(task.nonGoals.includes("No DNS or MX changes."));
   assert.ok(task.acceptanceCriteria.length > 0);
 });
