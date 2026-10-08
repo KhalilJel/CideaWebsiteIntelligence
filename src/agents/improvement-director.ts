@@ -88,11 +88,13 @@ function buildDesignOptions(
       }
     ];
 
+  const evaluationCriteria: z.infer<typeof action>["evaluationCriteria"] = ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"];
+
   if (decision && proposal) {
     return {
       objective,
       alternatives,
-      evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"] as const,
+      evaluationCriteria,
       decision: {
         selectedAlternativeId: decision.selectedAlternativeId,
         evaluations: decision.evaluations,
@@ -127,7 +129,7 @@ function buildDesignOptions(
   return {
     objective,
     alternatives,
-    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"] as const,
+    evaluationCriteria,
     decision: {
       selectedAlternativeId: selected.id,
       evaluations,
