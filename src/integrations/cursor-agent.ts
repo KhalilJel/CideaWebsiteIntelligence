@@ -74,6 +74,7 @@ export function codingTaskToCursorPrompt(task: CodingTask): string {
     "You are implementing a Cidea Website Intelligence CodingTask.",
     "Work only on the supplied task. Do not redesign unrelated areas.",
     "Do not deploy to production.",
+    "Do not commit, push, merge, or modify remote Git state.",
     "Do not change DNS or MX records.",
     "",
     "OBJECTIVE",
