@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { websiteTargetSchema, auditCategorySchema } from "./website-audit.js";
+import type { ImprovementAction } from "./improvement-plan.js";
 
 export const codingTaskSchema = z.object({
   id: z.string().min(1),
@@ -30,7 +31,7 @@ export function improvementActionToCodingTask(
     proposedChange: string;
     expectedImpact: "low" | "medium" | "high";
     requiresHumanApproval: boolean;
-  },
+  } & Partial<Pick<ImprovementAction, "objective" | "alternatives" | "evaluationCriteria" | "decision">> & Record<string, unknown>,
   target: z.infer<typeof websiteTargetSchema>,
   websiteUrl: string
 ): CodingTask {
