@@ -9,8 +9,9 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
 
 RUN npm install -g mcporter \
   && mcporter config add exa https://mcp.exa.ai/mcp --scope home \
-  && curl https://cursor.com/install -fsS | bash \
-  && ln -sf /root/.local/bin/agent /usr/local/bin/agent
+  && curl https://cursor.com/install -fsS | bash
+
+ENV PATH="/root/.local/bin:/root/.cursor/bin:$PATH"
 
 WORKDIR /app
 COPY package*.json ./
