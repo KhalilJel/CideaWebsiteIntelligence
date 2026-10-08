@@ -105,7 +105,7 @@ function buildDesignOptions(finding: AuditFinding, target: WebsiteResearch["targ
   return {
     objective,
     alternatives,
-    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"] as const,
+    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"],
     decision: {
       selectedAlternativeId: selected.id,
       evaluations,
