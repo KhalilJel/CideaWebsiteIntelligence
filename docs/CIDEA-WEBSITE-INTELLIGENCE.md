@@ -62,3 +62,16 @@ No automatic production deployment in the initial phase. Never change DNS or MX.
 CideaLead focuses on conversion and lead generation.
 CideaMarketing focuses on SEO, content and demand.
 CideaConsulting focuses on authority and higher-value consulting opportunities.
+
+## Imagine → Decide
+
+Improvement actions now carry a small, validated design-decision contract.
+
+1. Evidence-backed problem and business objective are recorded.
+2. Two or more concrete alternatives are generated.
+3. Alternatives are evaluated against conversion, brand fit, UX, hierarchy, differentiation and complexity.
+4. One alternative is selected and rejected alternatives are recorded.
+5. The chosen direction becomes the implementation proposal.
+6. Human approval remains required before implementation.
+
+This is intentionally a lightweight contract, not a design knowledge base. Repeated real-world outcomes can later be used to add a knowledge layer without changing the core pipeline.
