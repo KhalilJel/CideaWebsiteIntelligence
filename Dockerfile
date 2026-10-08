@@ -8,7 +8,9 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
   "https://github.com/Panniantong/Agent-Reach/archive/main.zip"
 
 RUN npm install -g mcporter \
-  && mcporter config add exa https://mcp.exa.ai/mcp --scope home
+  && mcporter config add exa https://mcp.exa.ai/mcp --scope home \
+  && curl https://cursor.com/install -fsS | bash \
+  && ln -sf /root/.local/bin/agent /usr/local/bin/agent
 
 WORKDIR /app
 COPY package*.json ./
