@@ -82,3 +82,94 @@ function buildDesignOptions(
         estimatedComplexity: "medium" as const
       }
     ];
+
+  const selected = finding.severity === "critical" || finding.severity === "high"
+    ? alternatives[0]
+    : alternatives[Math.min(1, alternatives.length - 1)];
+
+  const evaluations = Object.fromEntries(alternatives.map((alternative, index) => {
+    const complexityScore = alternative.estimatedComplexity === "low" ? 10 : 7;
+    const hierarchyScore = alternative.id === "editorial" ? 9 : 7;
+    const differentiationScore = alternative.id === "editorial" ? 8 : 6;
+    const totalScore = 7 + 8 + 8 + hierarchyScore + differentiationScore + complexityScore - index;
+    return [
+      alternative.id,
+      {
+        criteria: {
+          conversion: 8 - index,
+          brandFit: 8,
+          ux: 9 - index,
+          hierarchy: hierarchyScore,
+          differentiation: differentiationScore,
+          complexity: complexityScore
+        },
+        totalScore
+      }
+    ];
+  }));
+
+  return {
+    objective: proposal?.objective ?? objective,
+    alternatives,
+    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"] as z.infer<typeof action>["evaluationCriteria"],
+    decision: {
+      selectedAlternativeId: selected.id,
+      evaluations,
+      reasoning: `Selected ${selected.label} because it best balances the evidence-backed problem, business objective and implementation complexity.`,
+      rejectedAlternativeIds: alternatives.filter((alternative) => alternative.id !== selected.id).map((alternative) => alternative.id)
+    }
+  };
+}
+
+export function findingsToImprovementCandidates(
+  research: WebsiteResearch,
+  findings: AuditFinding[],
+  designProposals: Array<{ findingKey: string; objective: string; alternatives: DesignAlternative[] }> = []
+): z.infer<typeof action>[] {
+  const targetOrder = prioritiesForTarget(research.target);
+  return findings.slice().sort((a, b) => {
+    const categoryA = targetOrder.indexOf(a.category);
+    const categoryB = targetOrder.indexOf(b.category);
+    return (categoryA < 0 ? 99 : categoryA) - (categoryB < 0 ? 99 : categoryB)
+      || severityRank[a.severity] - severityRank[b.severity]
+      || b.confidence - a.confidence;
+  }).map((finding, index) => ({
+    id: `finding-${index + 1}-${finding.category.toLowerCase()}`,
+    category: finding.category,
+    priority: severityToPriority[finding.severity],
+    problem: finding.observation,
+    evidence: finding.evidence.map(e => e.sourceUrl),
+    ...buildDesignOptions(
+      finding,
+      research.target,
+      designProposals.find((proposal) => proposal.findingKey === `${finding.category}:${finding.title}`)
+    ),
+    proposedChange: finding.recommendation,
+    expectedImpact: finding.severity === "critical" || finding.severity === "high" ? "high"
+      : finding.severity === "medium" ? "medium" : "low",
+    confidence: finding.confidence,
+    requiresHumanApproval: true
+  }));
+}
+
+export function createImprovementPlan(
+  research: WebsiteResearch,
+  candidates: unknown[]
+): ImprovementPlan {
+  const valid = candidates
+    .map(candidate => action.safeParse(candidate))
+    .filter((result): result is { success: true; data: z.infer<typeof action> } => result.success)
+    .map(result => result.data)
+    .slice(0, 20);
+
+  valid.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority] || b.confidence - a.confidence);
+
+  return improvementPlanSchema.parse({
+    target: research.target,
+    websiteUrl: research.websiteUrl,
+    generatedAt: new Date().toISOString(),
+    actions: valid,
+    selectedTopFive: valid.slice(0, 5).map(item => item.id),
+    status: "review_required"
+  });
+}
