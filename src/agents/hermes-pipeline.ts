@@ -4,7 +4,7 @@ import { createHermesLLMClient } from "../integrations/hermes-llm.js";
 import type { JEVBrowserClient } from "../integrations/jev-browser.js";
 import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
-import { reasonWithHermes } from "./hermes-reasoning.js";
+import { reasonWithHermes, imagineWithHermes } from "./hermes-reasoning.js";
 import { createImprovementPlan, findingsToImprovementCandidates } from "./improvement-director.js";
 import { runBrowserJourney } from "./browser-journey.js";
 import { runDeterministicSpecialistAudits } from "./specialist-audits.js";
