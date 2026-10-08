@@ -14,6 +14,21 @@ test("only emits selected top five actions", () => {
       priority: "P1",
       problem: "Body text is too small.",
       evidence: ["https://cidealeads.com/"],
+      objective: "Improve readability without changing the site's strategic purpose.",
+      alternatives: [
+        { id: "minimal", label: "Minimal refinement", description: "Increase body text.", rationale: "Smallest change.", estimatedComplexity: "low" },
+        { id: "editorial", label: "Editorial refinement", description: "Improve typography hierarchy.", rationale: "Strengthens readability and hierarchy.", estimatedComplexity: "medium" }
+      ],
+      evaluationCriteria: ["ux", "hierarchy", "complexity"],
+      decision: {
+        selectedAlternativeId: "minimal",
+        evaluations: {
+          minimal: { criteria: { conversion: 7, brandFit: 8, ux: 9, hierarchy: 8, differentiation: 6, complexity: 10 }, totalScore: 48 },
+          editorial: { criteria: { conversion: 7, brandFit: 8, ux: 8, hierarchy: 9, differentiation: 7, complexity: 7 }, totalScore: 46 }
+        },
+        reasoning: "Minimal refinement solves the readability issue with the lowest complexity.",
+        rejectedAlternativeIds: ["editorial"]
+      },
       proposedChange: "Increase body text.",
       expectedImpact: "high",
       confidence: 0.9,
