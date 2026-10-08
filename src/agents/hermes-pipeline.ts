@@ -4,7 +4,7 @@ import { createHermesLLMClient } from "../integrations/hermes-llm.js";
 import type { JEVBrowserClient } from "../integrations/jev-browser.js";
 import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
-import { reasonWithHermes, imagineWithHermes } from "./hermes-reasoning.js";
+import { reasonWithHermes } from "./hermes-reasoning.js";
 import { createImprovementPlan, findingsToImprovementCandidates } from "./improvement-director.js";
 import { runBrowserJourney } from "./browser-journey.js";
 import { runDeterministicSpecialistAudits } from "./specialist-audits.js";
@@ -29,7 +29,8 @@ export type HermesPipelineInput = {
 
 export type HermesPipelineResult = {
   research: WebsiteResearch;
-  hermes: Awaited<ReturnType<typeof reasonWithHermes>>;\n  imagine: Awaited<ReturnType<typeof imagineWithHermes>>;
+  hermes: Awaited<ReturnType<typeof reasonWithHermes>>;
+  imagine: Awaited<ReturnType<typeof imagineWithHermes>>;
   improvementPlan: ImprovementPlan;
   codingTasks: CodingTask[];
   baseline: Awaited<ReturnType<typeof auditCandidate>>;
@@ -120,13 +121,23 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     ...(pixelJury?.findings ?? [])
   ];
 
+  const hermesClient = createHermesLLMClient();
   const hermes = await reasonWithHermes(
     researchWithPixelJury,
     findings,
-    createHermesLLMClient()
+    hermesClient
+  );
+  const imagine = await imagineWithHermes(
+    researchWithPixelJury,
+    findings,
+    hermesClient
   );
 
-  const generatedCandidates = findingsToImprovementCandidates(researchWithPixelJury, findings);
+  const generatedCandidates = findingsToImprovementCandidates(
+    researchWithPixelJury,
+    findings,
+    imagine.proposals
+  );
   const candidateActions = [...generatedCandidates, ...(input.candidateActions ?? [])];
   const improvementPlan = createImprovementPlan(researchWithPixelJury, candidateActions);
   const codingTasks = improvementPlanToCodingTasks(improvementPlan);
@@ -134,6 +145,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   return {
     research: researchWithPixelJury,
     hermes,
+    imagine,
     improvementPlan,
     codingTasks,
     baseline,
