@@ -17,6 +17,7 @@ import { improvementPlanToCodingTasks } from "./coding-task-generator.js";
 import { executeCodingTaskWithCursor, type CursorExecutionResult } from "./cursor-execution.js";
 import type { CodingTask } from "../domain/coding-task.js";
 import { runValidationPipeline, type ValidationPipelineResult } from "./validation-pipeline.js";
+import { validateBrowserActions } from "./typesafe-browser.js";
 
 export type HermesPipelineInput = {
   target: WebsiteTarget;
@@ -161,7 +162,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   const validation = cursorExecution?.status === "completed"
     ? await runValidationPipeline(
         input.websiteUrl,
-        input.browserActions ?? [],
+        input.browserActions ? validateBrowserActions(input.browserActions) : [],
         {
           browser: createJEVBrowserClient(),
           pixelJuryAvailable: pixelJuryEnabled()
