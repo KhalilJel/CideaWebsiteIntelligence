@@ -1,10 +1,10 @@
-# Cidea Website Intelligence
+# Website Intelligence Engine
 
 AI-powered website research, auditing and improvement engine for Cidea.
 
 ## Role
 
-Gullkornet finds the customer. Cidea Website Intelligence finds what Cidea can sell the customer.
+Gullkornet finds the customer. Website Intelligence Engine finds what Cidea can sell the customer.
 
 ## Pipeline
 
@@ -35,7 +35,7 @@ Railway architecture:
 
 Boundary rule:
 
-Cidea Website Intelligence does not become the lead generation engine. Gullkornet/KeeLead finds and enriches prospects; this service evaluates their websites and produces evidence-backed opportunities that Cidea can sell. No DNS or MX changes are part of this service.
+Website Intelligence Engine does not become the lead generation engine. Gullkornet/KeeLead finds and enriches prospects; this service evaluates their websites and produces evidence-backed opportunities that Cidea can sell. No DNS or MX changes are part of this service.
 
 ## Research Layer
 
