@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { reasonWithHermes } from "../src/agents/hermes-reasoning.js";
+import { reasonWithHermes, imagineWithHermes } from "../src/agents/hermes-reasoning.js";
 import { runHermesPipeline } from "../src/agents/hermes-pipeline.js";
 
 test("Hermes evidence-only mode never invents evidence", async () => {
@@ -33,4 +33,44 @@ test("Hermes pipeline consumes injected Agent Reach evidence", async () => {
   assert.ok(result.research.sources.some(source=>source.sourceType==="social"));
   assert.ok(result.research.sources.some(source=>source.url==="https://reddit.com/r/example"));
   assert.ok(!result.research.unresolvedQuestions.includes("Run external context research before making competitor or market claims."));
+});
+
+test("Hermes Imagine generates multiple materially different alternatives", async () => {
+  const result = await imagineWithHermes(
+    {
+      target: "CideaLead",
+      websiteUrl: "https://example.com",
+      collectedAt: new Date().toISOString(),
+      sources: [],
+      signals: [],
+      unresolvedQuestions: []
+    },
+    [{
+      category: "DESIGN",
+      severity: "medium",
+      title: "Repeated cards",
+      observation: "Service cards have repetitive visual treatment.",
+      recommendation: "Improve visual differentiation.",
+      evidence: [{ sourceUrl: "https://example.com", observation: "Repeated cards" }],
+      confidence: 0.9
+    }],
+    {
+      complete: async () => JSON.stringify({
+        proposals: [{
+          findingKey: "DESIGN:Repeated cards",
+          objective: "Improve hierarchy and conversion while preserving Cidea Lead's lead-generation purpose.",
+          alternatives: [
+            { id: "editorial", label: "Editorial hierarchy", description: "Use a stronger editorial composition.", rationale: "Creates hierarchy without adding interaction complexity.", estimatedComplexity: "medium" },
+            { id: "asymmetric", label: "Asymmetric composition", description: "Break equal card geometry.", rationale: "Reduces repetition and increases differentiation.", estimatedComplexity: "medium" },
+            { id: "grouping", label: "Grouped system", description: "Group services by strategic role.", rationale: "Creates semantic hierarchy.", estimatedComplexity: "high" }
+          ]
+        }]
+      })
+    }
+  );
+
+  assert.equal(result.mode, "llm");
+  assert.equal(result.proposals.length, 1);
+  assert.equal(result.proposals[0]?.alternatives.length, 3);
+  assert.equal(new Set(result.proposals[0]?.alternatives.map(a => a.label)).size, 3);
 });
