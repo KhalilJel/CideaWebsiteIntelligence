@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { reasonWithHermes, imagineWithHermes } from "../src/agents/hermes-reasoning.js";
+import { reasonWithHermes, imagineWithHermes, decideWithHermes } from "../src/agents/hermes-reasoning.js";
 import { runHermesPipeline } from "../src/agents/hermes-pipeline.js";
 
 test("Hermes evidence-only mode never invents evidence", async () => {
@@ -73,4 +73,104 @@ test("Hermes Imagine generates multiple materially different alternatives", asyn
   assert.equal(result.proposals.length, 1);
   assert.equal(result.proposals[0]?.alternatives.length, 3);
   assert.equal(new Set(result.proposals[0]?.alternatives.map(a => a.label)).size, 3);
+});
+
+test("Hermes Decide evaluates every alternative and selects the strongest option", async () => {
+  const finding = {
+    category: "DESIGN" as const,
+    severity: "medium" as const,
+    title: "Repeated cards",
+    observation: "Service cards have repetitive visual treatment.",
+    recommendation: "Improve visual differentiation.",
+    evidence: [{ sourceUrl: "https://example.com", observation: "Repeated cards" }],
+    confidence: 0.9
+  };
+  const proposal = {
+    findingKey: "DESIGN:Repeated cards",
+    objective: "Improve hierarchy and conversion while preserving Cidea Lead's lead-generation purpose.",
+    alternatives: [
+      { id: "editorial", label: "Editorial hierarchy", description: "Use a stronger editorial composition.", rationale: "Creates hierarchy without adding interaction complexity.", estimatedComplexity: "medium" as const },
+      { id: "asymmetric", label: "Asymmetric composition", description: "Break equal card geometry.", rationale: "Reduces repetition and increases differentiation.", estimatedComplexity: "medium" as const },
+      { id: "grouping", label: "Grouped system", description: "Group services by strategic role.", rationale: "Creates semantic hierarchy.", estimatedComplexity: "high" as const }
+    ]
+  };
+
+  const result = await decideWithHermes(
+    {
+      target: "CideaLead",
+      websiteUrl: "https://example.com",
+      collectedAt: new Date().toISOString(),
+      sources: [],
+      signals: [],
+      unresolvedQuestions: []
+    },
+    finding,
+    proposal,
+    {
+      complete: async () => JSON.stringify({
+        selectedAlternativeId: "asymmetric",
+        evaluations: {
+          editorial: { criteria: { conversion: 8, brandFit: 8, ux: 8, hierarchy: 9, differentiation: 7, complexity: 8 }, totalScore: 48 },
+          asymmetric: { criteria: { conversion: 9, brandFit: 9, ux: 8, hierarchy: 8, differentiation: 10, complexity: 7 }, totalScore: 51 },
+          grouping: { criteria: { conversion: 7, brandFit: 8, ux: 7, hierarchy: 9, differentiation: 8, complexity: 4 }, totalScore: 43 }
+        },
+        reasoning: "The asymmetric composition best improves differentiation and conversion while keeping complexity acceptable.",
+        rejectedAlternativeIds: ["editorial", "grouping"]
+      })
+    }
+  );
+
+  assert.equal(result.mode, "llm");
+  assert.equal(result.selectedAlternativeId, "asymmetric");
+  assert.equal(Object.keys(result.evaluations).length, 3);
+  assert.equal(result.evaluations.asymmetric?.totalScore, 51);
+  assert.deepEqual(result.rejectedAlternativeIds.sort(), ["editorial", "grouping"]);
+});
+
+test("Hermes Decide rejects invalid totals and falls back safely", async () => {
+  const finding = {
+    category: "CRO" as const,
+    severity: "high" as const,
+    title: "Weak CTA",
+    observation: "The primary action lacks clarity.",
+    recommendation: "Strengthen the primary CTA.",
+    evidence: [{ sourceUrl: "https://example.com", observation: "Weak CTA" }],
+    confidence: 0.95
+  };
+  const proposal = {
+    findingKey: "CRO:Weak CTA",
+    objective: "Improve conversion.",
+    alternatives: [
+      { id: "minimal", label: "Minimal CTA refinement", description: "Clarify the CTA.", rationale: "Low risk.", estimatedComplexity: "low" as const },
+      { id: "restructure", label: "CTA restructure", description: "Rework CTA hierarchy.", rationale: "Addresses hierarchy.", estimatedComplexity: "medium" as const }
+    ]
+  };
+
+  const result = await decideWithHermes(
+    {
+      target: "CideaLead",
+      websiteUrl: "https://example.com",
+      collectedAt: new Date().toISOString(),
+      sources: [],
+      signals: [],
+      unresolvedQuestions: []
+    },
+    finding,
+    proposal,
+    {
+      complete: async () => JSON.stringify({
+        selectedAlternativeId: "minimal",
+        evaluations: {
+          minimal: { criteria: { conversion: 9, brandFit: 9, ux: 9, hierarchy: 8, differentiation: 6, complexity: 10 }, totalScore: 1 },
+          restructure: { criteria: { conversion: 8, brandFit: 8, ux: 8, hierarchy: 9, differentiation: 7, complexity: 7 }, totalScore: 47 }
+        },
+        reasoning: "Invalid total on purpose.",
+        rejectedAlternativeIds: ["restructure"]
+      })
+    }
+  );
+
+  assert.equal(result.mode, "fallback");
+  assert.equal(result.findingKey, "CRO:Weak CTA");
+  assert.ok(result.evaluations.minimal);
 });
