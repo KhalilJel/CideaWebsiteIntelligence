@@ -1,7 +1,7 @@
 import { createFirecrawlClient } from "../integrations/firecrawl.js";
 import { createAgentReachClient, type AgentReachClient } from "../integrations/agent-reach.js";
 import { createHermesLLMClient } from "../integrations/hermes-llm.js";
-import type { JEVBrowserClient } from "../integrations/jev-browser.js";
+import { createJEVBrowserClient, type JEVBrowserClient } from "../integrations/jev-browser.js";
 import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
 import { reasonWithHermes, imagineWithHermes, decideAllWithHermes } from "./hermes-reasoning.js";
@@ -16,6 +16,7 @@ import { pixelJuryEnabled, runPixelJury } from "../integrations/pixeljury.js";
 import { improvementPlanToCodingTasks } from "./coding-task-generator.js";
 import { executeCodingTaskWithCursor, type CursorExecutionResult } from "./cursor-execution.js";
 import type { CodingTask } from "../domain/coding-task.js";
+import { runValidationPipeline, type ValidationPipelineResult } from "./validation-pipeline.js";
 
 export type HermesPipelineInput = {
   target: WebsiteTarget;
@@ -44,6 +45,7 @@ export type HermesPipelineResult = {
   browser?: Awaited<ReturnType<typeof runBrowserJourney>>;
   pixelJury?: Awaited<ReturnType<typeof runPixelJury>>;
   cursorExecution?: CursorExecutionResult;
+  validation?: ValidationPipelineResult;
 };
 
 export async function runHermesPipeline(input: HermesPipelineInput): Promise<HermesPipelineResult> {
@@ -130,16 +132,8 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   ];
 
   const hermesClient = createHermesLLMClient();
-  const hermes = await reasonWithHermes(
-    researchWithPixelJury,
-    findings,
-    hermesClient
-  );
-  const imagine = await imagineWithHermes(
-    researchWithPixelJury,
-    findings,
-    hermesClient
-  );
+  const hermes = await reasonWithHermes(researchWithPixelJury, findings, hermesClient);
+  const imagine = await imagineWithHermes(researchWithPixelJury, findings, hermesClient);
   const decide = await decideAllWithHermes(
     researchWithPixelJury,
     findings,
@@ -156,11 +150,23 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   const candidateActions = [...generatedCandidates, ...(input.candidateActions ?? [])];
   const improvementPlan = createImprovementPlan(researchWithPixelJury, candidateActions);
   const codingTasks = improvementPlanToCodingTasks(improvementPlan);
+
   const cursorExecution = input.cursor?.enabled !== false && input.cursor?.repositoryUrl && codingTasks[0]
     ? await executeCodingTaskWithCursor(codingTasks[0], {
         repositoryUrl: input.cursor.repositoryUrl,
         ref: input.cursor.ref
       })
+    : undefined;
+
+  const validation = cursorExecution?.status === "completed"
+    ? await runValidationPipeline(
+        input.websiteUrl,
+        input.browserActions ?? [],
+        {
+          browser: createJEVBrowserClient(),
+          pixelJuryAvailable: pixelJuryEnabled()
+        }
+      )
     : undefined;
 
   return {
@@ -173,6 +179,7 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
     baseline,
     browser,
     pixelJury,
-    cursorExecution
+    cursorExecution,
+    validation
   };
 }
