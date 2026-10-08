@@ -124,7 +124,7 @@ export async function runCursorAgent(
 
   const result = await runner(
     command,
-    ["-p", prompt, "--output-format", "json", "--workspace", workspacePath],
+    ["-p", prompt, "--output-format", "json", "--workspace", workspacePath, "--trust"],
     { cwd: workspacePath, timeoutMs }
   );
 
