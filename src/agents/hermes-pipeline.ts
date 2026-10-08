@@ -4,7 +4,7 @@ import { createHermesLLMClient } from "../integrations/hermes-llm.js";
 import type { JEVBrowserClient } from "../integrations/jev-browser.js";
 import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
-import { reasonWithHermes } from "./hermes-reasoning.js";
+import { reasonWithHermes, imagineWithHermes } from "./hermes-reasoning.js";
 import { createImprovementPlan, findingsToImprovementCandidates } from "./improvement-director.js";
 import { runBrowserJourney } from "./browser-journey.js";
 import { runDeterministicSpecialistAudits } from "./specialist-audits.js";
@@ -29,7 +29,7 @@ export type HermesPipelineInput = {
 
 export type HermesPipelineResult = {
   research: WebsiteResearch;
-  hermes: Awaited<ReturnType<typeof reasonWithHermes>>;
+  hermes: Awaited<ReturnType<typeof reasonWithHermes>>;\n  imagine: Awaited<ReturnType<typeof imagineWithHermes>>;
   improvementPlan: ImprovementPlan;
   codingTasks: CodingTask[];
   baseline: Awaited<ReturnType<typeof auditCandidate>>;
