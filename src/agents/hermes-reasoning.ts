@@ -1,7 +1,7 @@
 import type { WebsiteResearch } from "../domain/website-research.js";
 import type { AuditFinding } from "../domain/website-audit.js";
 import type { HermesLLMClient } from "../integrations/hermes-llm.js";
-import type { DesignAlternative } from "../domain/improvement-plan.js";
+import { decisionEvaluationSchema, type DesignAlternative } from "../domain/improvement-plan.js";
 
 export type HermesDecision = {
   summary: string;
@@ -14,11 +14,35 @@ export type HermesDecision = {
   mode: "llm" | "evidence_only";
 };
 
-
 export type HermesDesignProposal = {
   findingKey: string;
   objective: string;
   alternatives: DesignAlternative[];
+};
+
+export type HermesDesignDecision = {
+  findingKey: string;
+  selectedAlternativeId: string;
+  evaluations: Record<string, {
+    criteria: {
+      conversion: number;
+      brandFit: number;
+      ux: number;
+      hierarchy: number;
+      differentiation: number;
+      complexity: number;
+    };
+    totalScore: number;
+  }>;
+  reasoning: string;
+  rejectedAlternativeIds: string[];
+  mode: "llm" | "fallback";
+};
+
+const BUSINESS_OBJECTIVES: Record<string, string> = {
+  CideaLead: "Create more qualified leads and sales conversations.",
+  CideaMarketing: "Demonstrate marketing competence and create demand.",
+  CideaConsulting: "Build authority and create consulting opportunities."
 };
 
 const imagineSystem = [
@@ -30,6 +54,10 @@ const imagineSystem = [
   "Each proposal must contain findingKey, objective and 2 to 5 alternatives.",
   "Each alternative must contain id, label, description, rationale and estimatedComplexity (low, medium or high)."
 ].join(" ");
+
+function businessObjective(target: WebsiteResearch["target"]): string {
+  return BUSINESS_OBJECTIVES[target] ?? "Improve the website's stated business objective.";
+}
 
 function deterministicImagine(research: WebsiteResearch, findings: AuditFinding[]): HermesDesignProposal[] {
   return findings.map((finding) => ({
@@ -83,14 +111,7 @@ export async function imagineWithHermes(
       user: JSON.stringify({
         target: research.target,
         websiteUrl: research.websiteUrl,
-        businessObjective:
-          research.target === "CideaLead"
-            ? "Create more qualified leads and sales conversations."
-            : research.target === "CideaMarketing"
-              ? "Demonstrate marketing competence and create demand."
-              : research.target === "CideaConsulting"
-                ? "Build authority and create consulting opportunities."
-                : "Improve the website's stated business objective.",
+        businessObjective: businessObjective(research.target),
         findings: findings.map((finding) => ({
           findingKey: `${finding.category}:${finding.title}`,
           category: finding.category,
@@ -130,6 +151,159 @@ export async function imagineWithHermes(
   } catch {
     return { proposals: deterministicImagine(research, findings), mode: "fallback" };
   }
+}
+
+const decideSystem = [
+  "You are Hermes, Cidea's decision intelligence layer.",
+  "Choose the strongest design alternative using only supplied evidence, the business objective and the supplied alternatives.",
+  "Evaluate every alternative on exactly six criteria: conversion, brandFit, ux, hierarchy, differentiation, complexity.",
+  "Score each criterion from 0 to 10. For complexity, a higher score means simpler and safer implementation.",
+  "totalScore must equal the sum of the six criterion scores.",
+  "Select exactly one alternative. Explain the tradeoffs and why the selected alternative wins.",
+  "Do not invent metrics, user research, competitor facts or observations.",
+  "Return JSON with selectedAlternativeId, evaluations, reasoning and rejectedAlternativeIds."
+].join(" ");
+
+function fallbackDecision(
+  research: WebsiteResearch,
+  finding: AuditFinding,
+  proposal: HermesDesignProposal
+): HermesDesignDecision {
+  const evaluations = Object.fromEntries(proposal.alternatives.map((alternative, index) => {
+    const complexity = alternative.estimatedComplexity === "low" ? 10 : alternative.estimatedComplexity === "medium" ? 7 : 4;
+    const structural = /struct|editorial|group|hierarchy/i.test(
+      `${alternative.label} ${alternative.description}`
+    );
+    const distinctive = /distinct|asym|differenti|novel/i.test(
+      `${alternative.label} ${alternative.description}`
+    );
+    const severityBoost = finding.severity === "critical" || finding.severity === "high" ? 1 : 0;
+    const criteria = {
+      conversion: Math.min(10, 7 + severityBoost + (index === 0 ? 1 : 0)),
+      brandFit: 8,
+      ux: Math.min(10, 7 + (structural ? 2 : 0)),
+      hierarchy: Math.min(10, 7 + (structural ? 2 : 0)),
+      differentiation: Math.min(10, 7 + (distinctive ? 2 : 0)),
+      complexity
+    };
+    return [alternative.id, {
+      criteria,
+      totalScore: Object.values(criteria).reduce((sum, score) => sum + score, 0)
+    }];
+  }));
+
+  const selected = [...proposal.alternatives]
+    .sort((a, b) => (evaluations[b.id]?.totalScore ?? 0) - (evaluations[a.id]?.totalScore ?? 0))[0];
+
+  return {
+    findingKey: proposal.findingKey,
+    selectedAlternativeId: selected.id,
+    evaluations,
+    reasoning: `Selected ${selected.label} because it provides the strongest balance of the supplied evidence, the ${research.target} objective and implementation complexity. No unsupported external assumptions were used.`,
+    rejectedAlternativeIds: proposal.alternatives.filter((alternative) => alternative.id !== selected.id).map((alternative) => alternative.id),
+    mode: "fallback"
+  };
+}
+
+function validateDecision(
+  proposal: HermesDesignProposal,
+  candidate: Partial<HermesDesignDecision>
+): HermesDesignDecision {
+  const ids = new Set(proposal.alternatives.map((alternative) => alternative.id));
+  if (typeof candidate.selectedAlternativeId !== "string" || !ids.has(candidate.selectedAlternativeId)) {
+    throw new Error("Hermes selected an unknown alternative");
+  }
+  if (!candidate.evaluations || typeof candidate.evaluations !== "object") {
+    throw new Error("Hermes returned no evaluations");
+  }
+
+  const evaluations = candidate.evaluations as HermesDesignDecision["evaluations"];
+  if (Object.keys(evaluations).length !== proposal.alternatives.length) {
+    throw new Error("Hermes must evaluate every alternative");
+  }
+
+  for (const alternative of proposal.alternatives) {
+    const evaluation = evaluations[alternative.id];
+    const parsed = decisionEvaluationSchema.safeParse(evaluation);
+    if (!parsed.success) throw new Error("Invalid Hermes decision evaluation");
+    const sum = Object.values(parsed.data.criteria).reduce((total, score) => total + score, 0);
+    if (parsed.data.totalScore !== sum) throw new Error("Decision totalScore must equal criterion sum");
+  }
+
+  if (typeof candidate.reasoning !== "string" || !candidate.reasoning.trim()) {
+    throw new Error("Hermes returned no decision reasoning");
+  }
+
+  const rejectedAlternativeIds = candidate.rejectedAlternativeIds;
+  if (
+    !Array.isArray(rejectedAlternativeIds) ||
+    rejectedAlternativeIds.some((id) => typeof id !== "string" || !ids.has(id)) ||
+    rejectedAlternativeIds.includes(candidate.selectedAlternativeId) ||
+    rejectedAlternativeIds.length !== proposal.alternatives.length - 1
+  ) {
+    throw new Error("Invalid rejected alternative set");
+  }
+
+  return {
+    findingKey: proposal.findingKey,
+    selectedAlternativeId: candidate.selectedAlternativeId,
+    evaluations,
+    reasoning: candidate.reasoning,
+    rejectedAlternativeIds,
+    mode: "llm"
+  };
+}
+
+export async function decideWithHermes(
+  research: WebsiteResearch,
+  finding: AuditFinding,
+  proposal: HermesDesignProposal,
+  client?: HermesLLMClient
+): Promise<HermesDesignDecision> {
+  if (!client) return fallbackDecision(research, finding, proposal);
+
+  try {
+    const raw = await client.complete({
+      system: decideSystem,
+      user: JSON.stringify({
+        target: research.target,
+        websiteUrl: research.websiteUrl,
+        businessObjective: businessObjective(research.target),
+        finding: {
+          findingKey: proposal.findingKey,
+          category: finding.category,
+          severity: finding.severity,
+          title: finding.title,
+          observation: finding.observation,
+          recommendation: finding.recommendation,
+          evidence: finding.evidence
+        },
+        objective: proposal.objective,
+        alternatives: proposal.alternatives
+      })
+    });
+
+    return validateDecision(
+      proposal,
+      JSON.parse(raw) as Partial<HermesDesignDecision>
+    );
+  } catch {
+    return fallbackDecision(research, finding, proposal);
+  }
+}
+
+export async function decideAllWithHermes(
+  research: WebsiteResearch,
+  findings: AuditFinding[],
+  proposals: HermesDesignProposal[],
+  client?: HermesLLMClient
+): Promise<HermesDesignDecision[]> {
+  const decisions: HermesDesignDecision[] = [];
+  for (const proposal of proposals) {
+    const finding = findings.find((candidate) => `${candidate.category}:${candidate.title}` === proposal.findingKey);
+    if (finding) decisions.push(await decideWithHermes(research, finding, proposal, client));
+  }
+  return decisions;
 }
 
 const system = [

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { WebsiteResearch } from "../domain/website-research.js";
 import { prioritiesForTarget, type AuditFinding } from "../domain/website-audit.js";
 import { improvementPlanSchema, type ImprovementPlan, type DesignAlternative } from "../domain/improvement-plan.js";
+import type { HermesDesignDecision } from "./hermes-reasoning.js";
 
 const action = z.object({
   id: z.string(),
@@ -34,29 +35,33 @@ const action = z.object({
     reasoning: z.string().min(1),
     rejectedAlternativeIds: z.array(z.string()).max(4)
   }),
-  proposedChange: z.string(),
+  proposedChange: z.string().min(1),
   expectedImpact: z.enum(["low","medium","high"]),
   confidence: z.number().min(0).max(1),
   requiresHumanApproval: z.boolean()
 });
+
 const priorityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
 const severityRank = { critical: 0, high: 1, medium: 2, low: 3 };
 const severityToPriority = { critical: "P0", high: "P1", medium: "P2", low: "P3" } as const;
 
+function defaultObjective(target: WebsiteResearch["target"]): string {
+  return target === "CideaLead"
+    ? "Improve conversion and reduce friction while preserving Cidea Lead's lead-generation purpose."
+    : target === "CideaMarketing"
+      ? "Improve demand generation, clarity and marketing authority while preserving the site's marketing purpose."
+      : target === "CideaConsulting"
+        ? "Improve authority, trust and consulting opportunity creation while preserving the site's consulting purpose."
+        : "Improve the identified experience without changing the site's strategic purpose.";
+}
+
 function buildDesignOptions(
   finding: AuditFinding,
   target: WebsiteResearch["target"],
-  proposal?: { objective: string; alternatives: DesignAlternative[] }
+  proposal?: { objective: string; alternatives: DesignAlternative[] },
+  decision?: HermesDesignDecision
 ) {
-  const objective =
-    target === "CideaLead"
-      ? "Improve conversion and reduce friction while preserving Cidea Lead's lead-generation purpose."
-      : target === "CideaMarketing"
-        ? "Improve demand generation, clarity and marketing authority while preserving the site's marketing purpose."
-        : target === "CideaConsulting"
-          ? "Improve authority, trust and consulting opportunity creation while preserving the site's consulting purpose."
-          : "Improve the identified experience without changing the site's strategic purpose.";
-
+  const objective = proposal?.objective ?? defaultObjective(target);
   const alternatives = proposal?.alternatives?.length
     ? proposal.alternatives
     : [
@@ -83,6 +88,22 @@ function buildDesignOptions(
       }
     ];
 
+  const evaluationCriteria: z.infer<typeof action>["evaluationCriteria"] = ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"];
+
+  if (decision && proposal) {
+    return {
+      objective,
+      alternatives,
+      evaluationCriteria,
+      decision: {
+        selectedAlternativeId: decision.selectedAlternativeId,
+        evaluations: decision.evaluations,
+        reasoning: decision.reasoning,
+        rejectedAlternativeIds: decision.rejectedAlternativeIds
+      }
+    };
+  }
+
   const selected = finding.severity === "critical" || finding.severity === "high"
     ? alternatives[0]
     : alternatives[Math.min(1, alternatives.length - 1)];
@@ -91,31 +112,28 @@ function buildDesignOptions(
     const complexityScore = alternative.estimatedComplexity === "low" ? 10 : 7;
     const hierarchyScore = alternative.id === "editorial" ? 9 : 7;
     const differentiationScore = alternative.id === "editorial" ? 8 : 6;
-    const totalScore = 7 + 8 + 8 + hierarchyScore + differentiationScore + complexityScore - index;
-    return [
-      alternative.id,
-      {
-        criteria: {
-          conversion: 8 - index,
-          brandFit: 8,
-          ux: 9 - index,
-          hierarchy: hierarchyScore,
-          differentiation: differentiationScore,
-          complexity: complexityScore
-        },
-        totalScore
-      }
-    ];
+    const criteria = {
+      conversion: 8 - index,
+      brandFit: 8,
+      ux: 9 - index,
+      hierarchy: hierarchyScore,
+      differentiation: differentiationScore,
+      complexity: complexityScore
+    };
+    return [alternative.id, {
+      criteria,
+      totalScore: Object.values(criteria).reduce((sum, score) => sum + score, 0)
+    }];
   }));
 
   return {
-    objective: proposal?.objective ?? objective,
+    objective,
     alternatives,
-    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"] as z.infer<typeof action>["evaluationCriteria"],
+    evaluationCriteria,
     decision: {
       selectedAlternativeId: selected.id,
       evaluations,
-      reasoning: `Selected ${selected.label} because it best balances the evidence-backed problem, business objective and implementation complexity.`,
+      reasoning: `Selected ${selected.label} using the deterministic fallback because no validated Hermes decision was available.`,
       rejectedAlternativeIds: alternatives.filter((alternative) => alternative.id !== selected.id).map((alternative) => alternative.id)
     }
   };
@@ -124,32 +142,36 @@ function buildDesignOptions(
 export function findingsToImprovementCandidates(
   research: WebsiteResearch,
   findings: AuditFinding[],
-  designProposals: Array<{ findingKey: string; objective: string; alternatives: DesignAlternative[] }> = []
+  designProposals: Array<{ findingKey: string; objective: string; alternatives: DesignAlternative[] }> = [],
+  designDecisions: HermesDesignDecision[] = []
 ): z.infer<typeof action>[] {
   const targetOrder = prioritiesForTarget(research.target);
+
   return findings.slice().sort((a, b) => {
     const categoryA = targetOrder.indexOf(a.category);
     const categoryB = targetOrder.indexOf(b.category);
     return (categoryA < 0 ? 99 : categoryA) - (categoryB < 0 ? 99 : categoryB)
       || severityRank[a.severity] - severityRank[b.severity]
       || b.confidence - a.confidence;
-  }).map((finding, index) => ({
-    id: `finding-${index + 1}-${finding.category.toLowerCase()}`,
-    category: finding.category,
-    priority: severityToPriority[finding.severity],
-    problem: finding.observation,
-    evidence: finding.evidence.map(e => e.sourceUrl),
-    ...buildDesignOptions(
-      finding,
-      research.target,
-      designProposals.find((proposal) => proposal.findingKey === `${finding.category}:${finding.title}`)
-    ),
-    proposedChange: finding.recommendation,
-    expectedImpact: finding.severity === "critical" || finding.severity === "high" ? "high"
-      : finding.severity === "medium" ? "medium" : "low",
-    confidence: finding.confidence,
-    requiresHumanApproval: true
-  }));
+  }).map((finding, index) => {
+    const findingKey = `${finding.category}:${finding.title}`;
+    const proposal = designProposals.find((candidate) => candidate.findingKey === findingKey);
+    const decision = designDecisions.find((candidate) => candidate.findingKey === findingKey);
+
+    return {
+      id: `finding-${index + 1}-${finding.category.toLowerCase()}`,
+      category: finding.category,
+      priority: severityToPriority[finding.severity],
+      problem: finding.observation,
+      evidence: finding.evidence.map(e => e.sourceUrl),
+      ...buildDesignOptions(finding, research.target, proposal, decision),
+      proposedChange: finding.recommendation,
+      expectedImpact: finding.severity === "critical" || finding.severity === "high" ? "high"
+        : finding.severity === "medium" ? "medium" : "low",
+      confidence: finding.confidence,
+      requiresHumanApproval: true
+    };
+  });
 }
 
 export function createImprovementPlan(
