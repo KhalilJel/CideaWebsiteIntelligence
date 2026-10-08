@@ -22,4 +22,23 @@ const result = await runHermesPipeline({
     : undefined
 });
 
-console.log(JSON.stringify(result, null, 2));
+console.log(JSON.stringify({
+  target,
+  websiteUrl: url,
+  baselineScore: result.baseline.score,
+  findings: result.improvementPlan.actions.length,
+  selectedAlternatives: result.improvementPlan.actions.map(action => action.decision.selectedAlternativeId),
+  cursor: result.cursorExecution
+    ? {
+        status: result.cursorExecution.status,
+        repositoryUrl: result.cursorExecution.repositoryUrl,
+        exitCode: result.cursorExecution.cursor?.exitCode ?? null,
+        diffBytes: result.cursorExecution.diff?.length ?? 0,
+        error: result.cursorExecution.error ?? null
+      }
+    : {
+        status: "not_run",
+        enabled: cursorEnabled,
+        repositoryUrl: cursorRepositoryUrl ?? null
+      }
+}, null, 2));
