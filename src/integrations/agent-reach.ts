@@ -16,19 +16,27 @@ function platformForUrl(url:string):ReachEvidence["platform"]{
 }
 
 function urlsFromOutput(output:string):string[]{
-  return [...output.matchAll(/https?:\/\/[^\s<>"')\]]+/g)].map(m=>m[0].replace(/[.,;:]+$/,"")).filter((url,i,a)=>a.indexOf(url)===i);
+  return [...output.matchAll(/https?:\/\/[^\s<>"')\]]+/g)]
+    .map(m=>m[0].replace(/[.,;:]+$/,""))
+    .filter((url,i,a)=>a.indexOf(url)===i);
 }
 
-function runAgentReach(args:string[],timeoutMs=30000):Promise<string>{
-  const bin=process.env.AGENT_REACH_BIN??"agent-reach";
+function runCommand(bin:string,args:string[],timeoutMs=30000):Promise<string>{
   return new Promise((resolve,reject)=>{
     const child=spawn(bin,args,{shell:false,stdio:["ignore","pipe","pipe"]});
     let stdout="",stderr="";
-    const timer=setTimeout(()=>{child.kill("SIGTERM");reject(new Error("Agent Reach timed out after "+timeoutMs+"ms."))},timeoutMs);
+    const timer=setTimeout(()=>{
+      child.kill("SIGTERM");
+      reject(new Error(bin+" timed out after "+timeoutMs+"ms."));
+    },timeoutMs);
     child.stdout.on("data",chunk=>{stdout+=chunk.toString();});
     child.stderr.on("data",chunk=>{stderr+=chunk.toString();});
     child.on("error",error=>{clearTimeout(timer);reject(error);});
-    child.on("close",code=>{clearTimeout(timer);if(code===0)resolve(stdout);else reject(new Error("Agent Reach exited with code "+code+": "+stderr.slice(0,500)))});
+    child.on("close",code=>{
+      clearTimeout(timer);
+      if(code===0)resolve(stdout);
+      else reject(new Error(bin+" exited with code "+code+": "+stderr.slice(0,500)));
+    });
   });
 }
 
@@ -39,10 +47,25 @@ function parseEvidence(output:string,fallbackUrl?:string):ReachEvidence[]{
   return urls.map(url=>({sourceUrl:url,platform:platformForUrl(url),excerpt:output.slice(0,2000),collectedAt}));
 }
 
+/**
+ * Agent Reach v1.5 is a capability router/skill, not a read/search CLI.
+ * For generic web access its documented routing is Jina Reader for reads
+ * and Exa through mcporter for search. Keep the application boundary here
+ * so upstream tools can change without leaking into the pipeline.
+ */
 export function createAgentReachClient():AgentReachClient|undefined{
   if(process.env.AGENT_REACH_ENABLED!=="true")return undefined;
   return{
-    async read(url){const evidence=parseEvidence(await runAgentReach(["read",url]),url)[0];if(!evidence)throw new Error("Agent Reach returned no readable evidence.");return evidence;},
-    async search(query){return parseEvidence(await runAgentReach(["search",query,"-n","5"]));}
+    async read(url){
+      const readerUrl="https://r.jina.ai/"+url;
+      const output=await runCommand("curl",["-fsSL",readerUrl]);
+      const evidence=parseEvidence(output,url)[0];
+      if(!evidence)throw new Error("Agent Reach returned no readable evidence.");
+      return evidence;
+    },
+    async search(query){
+      const output=await runCommand("mcporter",["call","exa.web_search_exa","query="+query,"numResults=5"]);
+      return parseEvidence(output);
+    }
   };
 }
