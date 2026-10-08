@@ -10,6 +10,10 @@ const target = websiteTargetSchema.parse(
   process.argv[3] ?? new URL(url).hostname.replace(/^www\./, "")
 );
 
+const cursorRepositoryUrl = process.argv[4] ?? process.env.CURSOR_TARGET_REPO;
+const cursorEnabled =
+  process.env.CURSOR_AGENT_ENABLED === "true" && Boolean(cursorRepositoryUrl);
+
 const result = await runHermesPipeline({
   target,
   websiteUrl: url,
