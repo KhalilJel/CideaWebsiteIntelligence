@@ -12,7 +12,10 @@ const target = websiteTargetSchema.parse(
 
 const result = await runHermesPipeline({
   target,
-  websiteUrl: url
+  websiteUrl: url,
+  cursor: cursorRepositoryUrl
+    ? { repositoryUrl: cursorRepositoryUrl, enabled: cursorEnabled }
+    : undefined
 });
 
 console.log(JSON.stringify(result, null, 2));
