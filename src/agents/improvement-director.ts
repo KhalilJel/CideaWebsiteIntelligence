@@ -105,7 +105,7 @@ function buildDesignOptions(finding: AuditFinding, target: WebsiteResearch["targ
   return {
     objective,
     alternatives,
-    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"],
+    evaluationCriteria: ["conversion", "brandFit", "ux", "hierarchy", "differentiation", "complexity"] as z.infer<typeof action>["evaluationCriteria"],
     decision: {
       selectedAlternativeId: selected.id,
       evaluations,
