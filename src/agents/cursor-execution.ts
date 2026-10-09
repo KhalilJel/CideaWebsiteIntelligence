@@ -174,7 +174,7 @@ async function verifyWorkspace(
       previewUrl,
       browserActions,
       {
-        browser: createJEVBrowserClient(),
+        browser: createJEVBrowserClient(previewUrl),
         pixelJuryAvailable: pixelJuryEnabled()
       }
     );
