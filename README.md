@@ -28,7 +28,7 @@ See [`docs/isolated-preview-validation.md`](docs/isolated-preview-validation.md)
 
 ## Status
 
-Prototype in active completion. Isolated workspace build and preview validation are being added. JEV is not ready until a real browser service is configured and safely able to access the preview. Durable storage of proposed diffs and review evidence is still outstanding. The service remains scoped to website intelligence only.
+Prototype in active completion. Isolated workspace build and preview validation are being added. JEV is not ready until a real browser service is configured and safely able to access the preview. Durable storage of proposed diffs and review evidence is implemented against PostgreSQL, but the Railway `DATABASE_URL` reference still needs to be configured and tested before it is active. The service remains scoped to website intelligence only.
 
 Railway architecture:
 
