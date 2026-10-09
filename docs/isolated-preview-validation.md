@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Every Cursor proposal must be validated against the exact changed workspace, not the current live website.
+Every Cursor proposal must be validated against the exact changed workspace, not the current live website. Any non-empty diff is preserved in the review store even if Cursor or a later verification step fails.
 
 ## Execution order
 
