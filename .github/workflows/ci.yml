@@ -10,7 +10,9 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      JEV_PROJECT_DIR: ${{ runner.temp }}/jev-ultrafast
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,6 +24,17 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Check patch whitespace
         run: git diff --check
+      - name: Install uv and JEV runtime
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/uv" python install 3.12
+          git clone --depth 1 https://github.com/browser-use/jev-ultrafast.git "$JEV_PROJECT_DIR"
+          "$HOME/.local/bin/uv" sync --project "$JEV_PROJECT_DIR" --python 3.12
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run real JEV browser fixture
+        run: node scripts/test-jev-fixture.mjs
       - name: Check JEV runner syntax
         run: python3 -m py_compile scripts/jev_local_runner.py
       - name: Typecheck
