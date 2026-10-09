@@ -47,8 +47,10 @@ function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 9
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let killTimer: NodeJS.Timeout | undefined;
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
+      killTimer = setTimeout(() => child.kill("SIGKILL"), 3000);
       if (!settled) {
         settled = true;
         reject(new Error(`JEV timed out after ${timeoutMs}ms.`));
@@ -58,6 +60,7 @@ function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 9
     child.stderr.on("data", chunk => { stderr += chunk.toString(); });
     child.once("error", error => {
       clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
       if (!settled) {
         settled = true;
         reject(error);
@@ -65,6 +68,7 @@ function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 9
     });
     child.once("close", code => {
       clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
       if (settled) return;
       settled = true;
       const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
