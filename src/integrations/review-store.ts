@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import type { CodingTask } from "../domain/coding-task.js";
 import type { ValidationPipelineResult } from "../agents/validation-pipeline.js";
 import type { WorkspaceVerification } from "../agents/cursor-execution.js";
+import { createHumanReviewRequest, resolveHumanReview, type HumanReviewDecision } from "../domain/human-review.js";
 
 export type ReviewPersistenceStatus = "persisted" | "not_configured" | "failed";
 
@@ -97,4 +98,83 @@ export async function persistReviewRecord(input: ReviewRecordInput): Promise<Rev
       error: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+
+export type StoredReviewRecord = {
+  reviewId: string;
+  websiteUrl: string;
+  repositoryUrl: string;
+  task: CodingTask;
+  diff: string;
+  cursorStatus: "completed" | "failed";
+  validationStatus: "passed" | "failed" | "not_ready";
+  verification: WorkspaceVerification | null;
+  validation: ValidationPipelineResult | null;
+  reviewStatus: "review_required" | "approved" | "rejected" | "iteration_required";
+  reviewer: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+};
+
+export async function getReviewRecord(reviewId: string): Promise<StoredReviewRecord | undefined> {
+  const database = getPool();
+  if (!database) throw new Error("DATABASE_URL is not configured.");
+  const result = await database.query(
+    `SELECT review_id, website_url, repository_url, task_json, diff_text, cursor_status,
+            validation_status, verification_json, validation_json, review_status, reviewer,
+            review_note, created_at, reviewed_at
+     FROM cidea_website_review_records WHERE review_id = $1`,
+    [reviewId]
+  );
+  const row = result.rows[0];
+  if (!row) return undefined;
+  return {
+    reviewId: row.review_id,
+    websiteUrl: row.website_url,
+    repositoryUrl: row.repository_url,
+    task: row.task_json,
+    diff: row.diff_text,
+    cursorStatus: row.cursor_status,
+    validationStatus: row.validation_status,
+    verification: row.verification_json,
+    validation: row.validation_json,
+    reviewStatus: row.review_status,
+    reviewer: row.reviewer,
+    reviewNote: row.review_note,
+    createdAt: new Date(row.created_at).toISOString(),
+    reviewedAt: row.reviewed_at ? new Date(row.reviewed_at).toISOString() : null
+  };
+}
+
+export async function decideReviewRecord(
+  reviewId: string,
+  decision: HumanReviewDecision
+): Promise<{ reviewId: string; reviewStatus: StoredReviewRecord["reviewStatus"] }> {
+  const database = getPool();
+  if (!database) throw new Error("DATABASE_URL is not configured.");
+
+  const current = await getReviewRecord(reviewId);
+  if (!current) throw new Error("Review record not found.");
+  if (current.reviewStatus !== "review_required") {
+    throw new Error(`Review record is already resolved: ${current.reviewStatus}.`);
+  }
+
+  const request = createHumanReviewRequest(current.task, current.validationStatus);
+  const resolved = resolveHumanReview(request, decision);
+  const nextStatus = resolved.nextStatus === "approved"
+    ? "approved"
+    : resolved.nextStatus === "rejected"
+      ? "rejected"
+      : "iteration_required";
+
+  const updated = await database.query(
+    `UPDATE cidea_website_review_records
+     SET review_status = $2, reviewer = $3, review_note = $4, reviewed_at = $5
+     WHERE review_id = $1 AND review_status = 'review_required'`,
+    [reviewId, nextStatus, decision.reviewer, decision.note, decision.reviewedAt]
+  );
+  if (updated.rowCount !== 1) throw new Error("Review record changed concurrently; reload before deciding.");
+  return { reviewId, reviewStatus: nextStatus };
 }
