@@ -34,6 +34,7 @@ async function startIsolatedChromium(): Promise<{ browser: Browser; process: Chi
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-background-networking",
+    "--disable-features=ServiceWorker",
     "--disable-sync",
     "--disable-component-update",
     "--disable-default-apps",
