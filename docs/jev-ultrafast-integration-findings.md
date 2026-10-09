@@ -50,9 +50,9 @@ Implementation status (2026-10-09): the branch now contains a Python runner usin
 
 ## Network isolation hardening (2026-10-09)
 
-The Chromium adapter now installs a browser-context-wide Playwright route before Jev starts. Requests are continued only when their origin exactly matches the loopback preview; other HTTP requests are aborted. This closes the gap where a newly created page could begin navigation before a page-level CDP listener was attached. WebSocket connections are closed because they are not required for read-only visual QA. Chromium's loopback-only DevTools binding and external-DNS blocking remain additional defenses.
+The Chromium adapter now installs a browser-context-wide Playwright route before Jev starts. Requests are continued only when their origin exactly matches the loopback preview; other HTTP requests are aborted. This closes the gap where a newly created page could begin navigation before a page-level CDP listener was attached. WebSocket connections are closed because they are not required for read-only visual QA. Chromium's loopback-only DevTools binding and external-DNS blocking remain additional defenses. Chromium chooses its DevTools port atomically (`--remote-debugging-port=0`) and publishes it through the temporary profile's `DevToolsActivePort` file, avoiding the race from probing and then releasing an ephemeral port.
 
-This is a code-level safeguard, not a verified security certification. The branch still requires CI and the local fixture to pass; the fixture should be extended to prove off-origin HTTP requests and WebSocket connections are blocked before the adapter is considered complete.
+This is a code-level safeguard, not a verified security certification. The branch still requires CI and the local fixture to pass; the fixture now asserts that an off-origin HTTP request is blocked by the actual adapter guard before it reaches a second local server. The WebSocket route is installed during this fixture too, but a dedicated WebSocket handshake assertion remains outstanding.
 
 ## Offline browser fixture
 
