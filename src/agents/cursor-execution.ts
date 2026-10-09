@@ -8,6 +8,7 @@ import { pixelJuryEnabled, runPixelJury, type PixelJuryResult } from "../integra
 import { runValidationPipeline, type ValidationPipelineResult } from "./validation-pipeline.js";
 import type { BrowserAction } from "../integrations/jev-browser.js";
 import type { CodingTask } from "../domain/coding-task.js";
+import { persistReviewRecord, type ReviewPersistenceResult } from "../integrations/review-store.js";
 
 type CommandResult = { exitCode: number | null; stdout: string; stderr: string };
 
@@ -92,6 +93,7 @@ export type CursorExecutionResult = {
   error?: string;
   verification?: WorkspaceVerification;
   validation?: ValidationPipelineResult;
+  reviewPersistence?: ReviewPersistenceResult;
 };
 
 function stopProcess(child: ChildProcess): Promise<void> {
@@ -239,6 +241,16 @@ export async function executeCodingTaskWithCursor(
       && verification.buildStatus === "passed"
       && verification.previewStatus === "passed";
 
+    const reviewPersistence = await persistReviewRecord({
+      task,
+      repositoryUrl: options.repositoryUrl,
+      websiteUrl: task.websiteUrl,
+      diff: diff.stdout,
+      cursorStatus: verificationPassed ? "completed" : "failed",
+      verification,
+      validation
+    });
+
     return {
       repositoryUrl: options.repositoryUrl,
       workspacePath,
@@ -247,7 +259,8 @@ export async function executeCodingTaskWithCursor(
       status: verificationPassed ? "completed" : "failed",
       error: verification.error,
       verification,
-      validation
+      validation,
+      reviewPersistence
     };
   } catch (error) {
     return {
