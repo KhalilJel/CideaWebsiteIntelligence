@@ -22,12 +22,19 @@ Every Cursor proposal must be validated against the exact changed workspace, not
 - Visual and browser validation results are reported separately; a successful build does not mean the proposal is approved.
 - Human approval remains mandatory before any proposal is applied to the production website.
 - The pipeline must not substitute the live URL when an isolated preview is unavailable.
-- JEV is still considered not ready until the local Python agent, loopback Chromium/CDP connection, required TypeSafe/text-model credentials, and offline browser fixture are verified together in CI.
+- CI now verifies the local Python agent, loopback Chromium/CDP connection, and offline browser fixture together. This does not yet prove Railway runtime compatibility or successful live credential configuration.
 - No DNS/MX changes and no production deployment are allowed in this phase.
+
+## CI verification (2026-10-09)
+
+- Green run: [PR workflow run](https://github.com/KhalilJel/CideaWebsiteIntelligence/actions/runs/37918927605).
+- Confirmed passing steps: install dependencies, whitespace check, install Python 3.12/JEV runtime, install Chromium, real JEV browser fixture (including off-origin HTTP/WebSocket blocking), fixture/runner syntax checks, TypeScript typecheck, build, and complete test suite.
+- The CI workflow initially failed before job creation because the job-level environment referenced `runner.temp`; replacing it with `/tmp/jev-ultrafast` allowed the workflow to start and pass.
+- CI validates the offline fixture, not the Railway deployment. No production deployment or DNS/MX change was made.
 
 ## Current limitations
 
-- JEV runs locally in the same worker as the preview and connects to an isolated Chromium instance through loopback CDP. This integration remains unverified until CI and the local fixture pass; do not replace it with a public preview URL or a guessed hosted `/execute` endpoint.
+- JEV runs locally in the same worker as the preview and connects to an isolated Chromium instance through loopback CDP. The offline fixture is CI-verified; Railway end-to-end execution remains unverified. Do not replace the private preview with a public URL or a guessed hosted `/execute` endpoint.
 - Review records and full diffs are persisted in PostgreSQL when `DATABASE_URL` is configured. The Railway service still needs its database reference configured before durable review is active.
 - Inspect and decide a stored record with `npm run review:record -- show <review-id>` or `npm run review:record -- decide <review-id> <approve|reject|iterate> <reviewer> <note>`. Approval is rejected unless validation passed.
 - Validation must be treated as a proposal gate, not proof of production quality, until the end-to-end cycle is completed.
