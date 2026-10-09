@@ -35,6 +35,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run real JEV browser fixture
         run: node scripts/test-jev-fixture.mjs
+      - name: Check JEV fixture syntax
+        run: node --check scripts/test-jev-fixture.mjs
       - name: Check JEV runner syntax
         run: python3 -m py_compile scripts/jev_local_runner.py
       - name: Typecheck
