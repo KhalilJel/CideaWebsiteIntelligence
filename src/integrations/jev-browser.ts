@@ -92,7 +92,7 @@ async function stopIsolatedChromium(browser: Browser | undefined, child: ChildPr
   if (profile) await rm(profile, { recursive: true, force: true });
 }
 
-async function guardBrowserNetwork(browser: Browser, allowedOrigin: string): Promise<void> {
+export async function guardBrowserNetwork(browser: Browser, allowedOrigin: string): Promise<void> {
   // Install context-level routing before the agent creates or navigates any page.
   // Unlike a page-created event handler, this also covers the first request from
   // newly opened tabs and redirects before those requests reach the network.
