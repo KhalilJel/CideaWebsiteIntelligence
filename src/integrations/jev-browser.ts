@@ -39,7 +39,7 @@ function reserveLoopbackPort(): Promise<number> {
 
 function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 90_000): Promise<JEVRunnerOutput> {
   return new Promise((resolve, reject) => {
-    const child = spawn("uv", ["run", "--project", "/opt/jev", "python", "/app/scripts/jev_local_runner.py", url, goal], {
+    const child = spawn("uv", ["run", "--project", process.env.JEV_PROJECT_DIR ?? "/opt/jev", "python", "/app/scripts/jev_local_runner.py", url, goal], {
       shell: false,
       env,
       stdio: ["ignore", "pipe", "pipe"]
