@@ -27,7 +27,7 @@ Every Cursor proposal must be validated against the exact changed workspace, not
 
 ## Current limitations
 
-- The local preview is accessible from the Railway worker only. A separately hosted JEV browser may not be able to reach `127.0.0.1`; JEV needs a safe preview-access strategy before it can validate interactions.
+- JEV runs locally in the same worker as the preview and connects to an isolated Chromium instance through loopback CDP. This integration remains unverified until CI and the local fixture pass; do not replace it with a public preview URL or a guessed hosted `/execute` endpoint.
 - Review records and full diffs are persisted in PostgreSQL when `DATABASE_URL` is configured. The Railway service still needs its database reference configured before durable review is active.
 - Inspect and decide a stored record with `npm run review:record -- show <review-id>` or `npm run review:record -- decide <review-id> <approve|reject|iterate> <reviewer> <note>`. Approval is rejected unless validation passed.
 - Validation must be treated as a proposal gate, not proof of production quality, until the end-to-end cycle is completed.
