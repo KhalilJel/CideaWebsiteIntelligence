@@ -104,33 +104,31 @@ async function stopIsolatedChromium(browser: Browser | undefined, child: ChildPr
 }
 
 async function guardBrowserNetwork(browser: Browser, allowedOrigin: string): Promise<void> {
-  const guardedPages = new WeakSet<object>();
-  const guardPage = async (page: import("playwright").Page): Promise<void> => {
-    if (guardedPages.has(page)) return;
-    guardedPages.add(page);
-    const context = page.context();
-    const session = await context.newCDPSession(page);
-    session.on("Fetch.requestPaused", async event => {
+  // Install context-level routing before the agent creates or navigates any page.
+  // Unlike a page-created event handler, this also covers the first request from
+  // newly opened tabs and redirects before those requests reach the network.
+  for (const context of browser.contexts()) {
+    await context.route("**/*", async route => {
       let allowed = false;
       try {
-        const url = new URL(event.request.url);
+        const url = new URL(route.request().url());
         allowed = url.origin === allowedOrigin || ["data:", "blob:", "about:"].includes(url.protocol);
       } catch {
         allowed = false;
       }
-      try {
-        if (allowed) await session.send("Fetch.continueRequest", { requestId: event.requestId });
-        else await session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
-      } catch {
-        // The target may close while a request is being cancelled; fail closed.
+
+      if (allowed) {
+        await route.continue();
+      } else {
+        await route.abort("blockedbyclient");
       }
     });
-    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
-  };
 
-  for (const context of browser.contexts()) {
-    context.on("page", page => { void guardPage(page).catch(() => undefined); });
-    for (const page of context.pages()) await guardPage(page);
+    // WebSockets are not needed for read-only QA. Close them rather than
+    // allowing a page to bypass the HTTP request-origin allowlist.
+    await context.routeWebSocket("**/*", socket => {
+      socket.close();
+    });
   }
 }
 
