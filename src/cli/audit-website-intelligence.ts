@@ -66,7 +66,8 @@ console.log(JSON.stringify({
         checks: validation.checks.map(check => ({
           name: check.name,
           status: check.status,
-          summary: check.summary
+          summary: check.summary,
+          details: check.details ?? null
         }))
       }
     : {
