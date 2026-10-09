@@ -218,6 +218,16 @@ export async function executeCodingTaskWithCursor(
       timeoutMs: options.timeoutMs ?? 15 * 60 * 1000
     });
 
+    const includeUntracked = await runCommand(
+      "git",
+      ["add", "--intent-to-add", "--", "."],
+      workspacePath,
+      30_000
+    );
+    if (includeUntracked.exitCode !== 0) {
+      throw new Error(`Could not prepare untracked files for diff capture: ${includeUntracked.stderr || includeUntracked.stdout}`);
+    }
+
     const diff = await runCommand(
       "git",
       ["diff", "--no-ext-diff", "--binary"],
@@ -233,6 +243,17 @@ export async function executeCodingTaskWithCursor(
         diff: diff.stdout,
         status: "failed",
         error: `Cursor Agent exited with code ${cursor.exitCode}.`
+      };
+    }
+
+    if (!diff.stdout.trim()) {
+      return {
+        repositoryUrl: options.repositoryUrl,
+        workspacePath,
+        cursor,
+        diff: "",
+        status: "failed",
+        error: "Cursor Agent completed without producing a reviewable diff."
       };
     }
 
