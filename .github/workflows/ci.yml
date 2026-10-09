@@ -20,6 +20,8 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Check JEV runner syntax
+        run: python3 -m py_compile scripts/jev_local_runner.py
       - name: Typecheck
         run: npm run typecheck
       - name: Build
