@@ -236,13 +236,23 @@ export async function executeCodingTaskWithCursor(
     );
 
     if (cursor.exitCode !== 0) {
+      const reviewPersistence = diff.stdout.trim()
+        ? await persistReviewRecord({
+            task,
+            repositoryUrl: options.repositoryUrl,
+            websiteUrl: task.websiteUrl,
+            diff: diff.stdout,
+            cursorStatus: "failed"
+          })
+        : undefined;
       return {
         repositoryUrl: options.repositoryUrl,
         workspacePath,
         cursor,
         diff: diff.stdout,
         status: "failed",
-        error: `Cursor Agent exited with code ${cursor.exitCode}.`
+        error: `Cursor Agent exited with code ${cursor.exitCode}.`,
+        reviewPersistence
       };
     }
 
