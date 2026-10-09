@@ -12,7 +12,8 @@
     "audit:all": "tsx src/cli/audit-all-cidea-sites.ts",
     "audit:website:full": "tsx src/cli/audit-website-full.ts",
     "audit:complete": "tsx src/cli/audit-complete.ts",
-    "audit:visual": "tsx src/cli/audit-visual.ts"
+    "audit:visual": "tsx src/cli/audit-visual.ts",
+    "review:record": "tsx src/cli/review-record.ts"
   },
   "dependencies": {
     "zod": "^3.24.2",
