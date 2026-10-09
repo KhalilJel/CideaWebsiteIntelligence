@@ -30,3 +30,19 @@ The current interface is action-list oriented (`execute(actions)`), while upstre
 - Run one test against a local fixture through the real Jev agent, not against production.
 - Keep the preview local; do not expose it publicly merely to make a separate browser service reach it.
 - Keep production deployment and the staged PostgreSQL variable change under explicit human approval.
+
+
+## Implementation decision (2026-10-09)
+
+The production integration must use Jev's documented goal-based library contract, not emulate the unsupported hosted `/execute` API and not translate CSS selectors into Jev element IDs.
+
+- Change the validation boundary to accept an explicit, bounded natural-language validation goal plus the isolated preview URL.
+- Run Jev and Chromium in the same worker/container as the preview; bind the preview and DevTools endpoint to loopback only.
+- Keep the Jev agent read-only in intent: inspect navigation, page rendering, visible primary content and obvious broken states. Do not submit forms, authenticate, purchase, or trigger external side effects.
+- Record only actual entries from `agent.state["history"]`; a `DONE` state alone is not a pass.
+- Independently open the preview and verify a successful HTTP response, expected origin, non-empty document title/body, and that the preview process remains alive.
+- Map observed executed actions into the existing strict observation schema; reject empty history, invalid URLs, malformed snapshots, timeouts, missing credentials, and browser/runtime failures.
+- Use an explicit execution timeout and always close the Jev-owned tab, Chromium process, and temporary profile in a `finally` path.
+- The current `BrowserAction[]` interface is not a compatible input contract for Jev. It must be replaced at the validation boundary with a goal string, rather than silently reinterpreting `click`/selector instructions as Jev actions.
+
+This remains a design decision, not an implemented or tested capability. Do not mark JEV ready until the local fixture test and all fail-closed tests pass.
