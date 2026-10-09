@@ -52,7 +52,7 @@ async function startIsolatedChromium(): Promise<{ browser: Browser; process: Chi
         // Let Chromium atomically allocate the port and publish it in its profile.
         // This avoids the free-port probe/bind race from reserving then releasing a port.
         const activePort = await readFile(join(profile, "DevToolsActivePort"), "utf8");
-        const port = Number(activePort.split(/\\r?\\n/)[0]);
+        const port = Number(activePort.split(/\r?\n/)[0]);
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
           throw new Error("Chromium published an invalid DevTools port.");
         }
