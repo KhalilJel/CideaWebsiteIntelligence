@@ -5,7 +5,7 @@ Date: 2026-10-09
 ## Verified implementation facts
 
 - The live `cidea-website-intelligence` Railway service has not yet had this local JEV runtime verified end to end.
-- The current TypeScript adapter assumes a hosted HTTP API: `POST /execute` with `{ actions }`, returning `{ observations }`. No such endpoint has been verified.
+- The original adapter assumed a hosted HTTP API: `POST /execute` with `{ actions }`, returning `{ observations }`. No such endpoint was verified; the draft branch replaces this assumption with the documented local Python agent contract.
 - The upstream project is [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast). Its README documents a Python library (`from jev_ultrafast import Agent`), not a hosted `/execute` API.
 - The upstream agent accepts a URL and a natural-language goal, then runs a bounded browser loop. It depends on Browser Harness and TypeSafe's hosted API. Typing into fields also requires an OpenAI-compatible text model key.
 - Browser Harness supports local browser execution and Browser Use Cloud. The Cloud option is not automatically suitable for the current isolated preview: a cloud browser cannot reach the worker's `127.0.0.1:4173` preview without a separate secure exposure mechanism.
