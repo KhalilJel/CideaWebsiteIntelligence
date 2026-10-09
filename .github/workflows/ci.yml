@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - runtime/cycle-3-agent-reach
+      - fix/isolated-preview-validation
 
 jobs:
   verify:
