@@ -46,3 +46,10 @@ The production integration must use Jev's documented goal-based library contract
 - The current `BrowserAction[]` interface is not a compatible input contract for Jev. It must be replaced at the validation boundary with a goal string, rather than silently reinterpreting `click`/selector instructions as Jev actions.
 
 Implementation status (2026-10-09): the branch now contains a Python runner using the upstream `Agent(url, goal)` contract, a loopback-only Playwright Chromium launcher, a separate final-state check, strict loopback URL/credential gates, timeout handling, cleanup, and unit tests for missing credentials and non-loopback URLs. These changes are on the draft PR branch only. They are not production-deployed. CI status and the real local-fixture run still need verification; JEV must remain not-ready until those checks pass.
+
+
+## Offline browser fixture
+
+The branch now includes `scripts/test-jev-fixture.mjs` and `scripts/jev_fixture_test_runner.py`. The fixture starts a local HTTP site, launches real Playwright Chromium with loopback DevTools, stubs only Jev's decision function to avoid paid API calls, then uses the real Jev agent and Browser Harness to click an internal link. The test independently asserts that the final page URL and heading match the expected outcome.
+
+The CI workflow installs Python 3.12, the upstream Jev project and Chromium before running this fixture. This is intentionally stronger than only checking TypeScript types or mocking the browser client. Until the resulting workflow run is green, the fixture is considered unverified.
