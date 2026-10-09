@@ -22,7 +22,7 @@ const VALIDATION_GOAL = [
   "Stop when you have inspected the page and can report whether the preview rendered coherently."
 ].join(" ");
 
-async function startIsolatedChromium(): Promise<{ browser: Browser; process: ChildProcess; profile: string }> {
+async function startIsolatedChromium(): Promise<{ browser: Browser; process: ChildProcess; profile: string; port: number }> {
   const profile = await mkdtemp(join(tmpdir(), "cidea-jev-chrome-"));
   const child = spawn(chromium.executablePath(), [
     "--headless=new",
@@ -60,7 +60,7 @@ async function startIsolatedChromium(): Promise<{ browser: Browser; process: Chi
         const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) });
         if (response.ok) {
           const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-          return { browser, process: child, profile };
+          return { browser, process: child, profile, port };
         }
         lastError = `DevTools returned HTTP ${response.status}.`;
       } catch (error) {
@@ -243,6 +243,7 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
         browser = launched.browser;
         chromiumProcess = launched.process;
         profile = launched.profile;
+        const cdpPort = launched.port;
         await guardBrowserNetwork(browser, parsedUrl.origin);
         const env: NodeJS.ProcessEnv = {
           PATH: process.env.PATH,
@@ -253,7 +254,7 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
           TEXT_MODEL_BASE_URL: process.env.TEXT_MODEL_BASE_URL ?? "https://openrouter.ai/api/v1",
           TEXT_MODEL: process.env.TEXT_MODEL ?? "inception/mercury-2.5",
           TEXT_MODEL_REASONING: process.env.TEXT_MODEL_REASONING ?? "none",
-          BU_CDP_URL: `http://127.0.0.1:${port}`
+          BU_CDP_URL: `http://127.0.0.1:${cdpPort}`
         };
         const output = await runJEV(previewUrl, VALIDATION_GOAL, env);
         const history = output.history ?? [];
