@@ -146,7 +146,7 @@ try {
   assert.ok(result.historyCount >= 1);
   assert.ok(String(result.url).endsWith("/next"));
   assert.ok(String(result.text).includes("Fixture loaded"));
-  process.stdout.write("JEV local fixture passed: real Chromium/Browser Harness, internal click, and final page verified.\n");
+  process.stdout.write("JEV local fixture passed: real Chromium/Browser Harness, internal click, final page, and off-origin HTTP blocking verified.\n");
 } finally {
   if (browser) await browser.close().catch(() => undefined);
   if (chromeProcess && chromeProcess.exitCode === null && chromeProcess.signalCode === null) {
