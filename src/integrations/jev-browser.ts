@@ -40,7 +40,7 @@ async function startIsolatedChromium(): Promise<{ browser: Browser; process: Chi
     "--disable-default-apps",
     "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
     "about:blank"
-  ], { shell: false, stdio: ["ignore", "ignore", "pipe"] });
+  ], { shell: false, detached: process.platform !== "win32", stdio: ["ignore", "ignore", "pipe"] });
 
   let stderr = "";
   child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
@@ -89,11 +89,11 @@ async function stopIsolatedChromium(browser: Browser | undefined, child: ChildPr
         resolve();
       };
       const termTimer = setTimeout(() => {
-        child.kill("SIGKILL");
+        signalProcessTree(child, "SIGKILL");
         reapTimer = setTimeout(finish, 1000);
       }, 3000);
       child.once("close", finish);
-      child.kill("SIGTERM");
+      signalProcessTree(child, "SIGTERM");
     });
   }
   if (profile) await rm(profile, { recursive: true, force: true });
