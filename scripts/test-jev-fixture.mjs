@@ -8,9 +8,14 @@ import { chromium } from "playwright";
 import { guardBrowserNetwork } from "../src/integrations/jev-browser.ts";
 
 let blockedRequests = 0;
+let blockedWebSocketUpgrades = 0;
 const blockedServer = createServer((_request, response) => {
   blockedRequests += 1;
   response.end("This off-origin request should have been blocked.");
+});
+blockedServer.on("upgrade", (_request, socket) => {
+  blockedWebSocketUpgrades += 1;
+  socket.destroy();
 });
 
 const server = createServer((request, response) => {
@@ -134,6 +139,32 @@ try {
     }, blockedUrl);
     assert.equal(requestOutcome, "blocked", "Off-origin browser fetch should be blocked.");
     assert.equal(blockedRequests, 0, "Blocked origin should not receive the request.");
+
+    const websocketOutcome = await probePage.evaluate(async target => {
+      const websocketUrl = target.replace(/^http:/, "ws:");
+      return await new Promise(resolve => {
+        const socket = new WebSocket(websocketUrl);
+        const timeout = setTimeout(() => {
+          socket.close();
+          resolve("timeout");
+        }, 1500);
+        socket.addEventListener("open", () => {
+          clearTimeout(timeout);
+          socket.close();
+          resolve("opened");
+        }, { once: true });
+        socket.addEventListener("error", () => {
+          clearTimeout(timeout);
+          resolve("blocked");
+        }, { once: true });
+        socket.addEventListener("close", () => {
+          clearTimeout(timeout);
+          resolve("blocked");
+        }, { once: true });
+      });
+    }, blockedUrl);
+    assert.equal(websocketOutcome, "blocked", "Off-origin WebSocket should be closed by the browser guard.");
+    assert.equal(blockedWebSocketUpgrades, 0, "Blocked WebSocket must not reach the off-origin server.");
   } finally {
     await probePage.close();
   }
@@ -147,7 +178,7 @@ try {
   assert.ok(result.historyCount >= 1);
   assert.ok(String(result.url).endsWith("/next"));
   assert.ok(String(result.text).includes("Fixture loaded"));
-  process.stdout.write("JEV local fixture passed: real Chromium/Browser Harness, internal click, final page, and off-origin HTTP blocking verified.\n");
+  process.stdout.write("JEV local fixture passed: real Chromium/Browser Harness, internal click, final page, and off-origin HTTP and WebSocket blocking verified.\n");
 } finally {
   if (browser) await browser.close().catch(() => undefined);
   if (chromeProcess && chromeProcess.exitCode === null && chromeProcess.signalCode === null) {
