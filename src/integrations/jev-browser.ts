@@ -261,7 +261,9 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
         }
 
         // Independent final-state check: open the isolated preview in a separate tab.
-        const page = await browser.newPage();
+        const context = browser.contexts()[0];
+        if (!context) throw new Error("Chromium did not expose a default browser context.");
+        const page = await context.newPage();
         try {
           const response = await page.goto(previewUrl, { waitUntil: "domcontentloaded", timeout: 15_000 });
           const finalUrl = page.url();
