@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
@@ -15,23 +15,6 @@ const server = createServer((request, response) => {
   }
   response.end("<!doctype html><html><head><title>JEV Fixture</title></head><body><h1>JEV fixture</h1><a href=\"/next\">Open result</a></body></html>");
 });
-
-function reservePort() {
-  return new Promise((resolve, reject) => {
-    const probe = createServer();
-    probe.once("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const address = probe.address();
-      if (!address || typeof address === "string") {
-        probe.close();
-        reject(new Error("Could not reserve a DevTools port."));
-        return;
-      }
-      const port = address.port;
-      probe.close(error => error ? reject(error) : resolve(port));
-    });
-  });
-}
 
 function runFixtureRunner(url, env) {
   return new Promise((resolve, reject) => {
@@ -80,14 +63,13 @@ try {
   const address = server.address();
   assert.ok(address && typeof address !== "string");
   const url = `http://127.0.0.1:${address.port}`;
-  const cdpPort = await reservePort();
   profile = await mkdtemp(join(tmpdir(), "jev-fixture-chrome-"));
   chromeProcess = spawn(chromium.executablePath(), [
     "--headless=new",
     "--no-sandbox",
     "--disable-dev-shm-usage",
     `--user-data-dir=${profile}`,
-    `--remote-debugging-port=${cdpPort}`,
+    "--remote-debugging-port=0",
     "--remote-debugging-address=127.0.0.1",
     "--no-first-run",
     "--no-default-browser-check",
@@ -102,9 +84,13 @@ try {
   chromeProcess.stderr.on("data", chunk => { chromeStderr += chunk.toString(); });
   const cdpDeadline = Date.now() + 15_000;
   let cdpReady = false;
+  let cdpPort;
   while (Date.now() < cdpDeadline) {
     if (chromeProcess.exitCode !== null) throw new Error(`Chromium exited early: ${chromeStderr.slice(-1500)}`);
     try {
+      const activePort = await readFile(join(profile, "DevToolsActivePort"), "utf8");
+      cdpPort = Number(activePort.split(/\r?\n/)[0]);
+      if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65535) throw new Error("Chromium published an invalid DevTools port.");
       const response = await fetch(`http://127.0.0.1:${cdpPort}/json/version`, { signal: AbortSignal.timeout(1000) });
       if (response.ok) {
         cdpReady = true;
@@ -114,6 +100,7 @@ try {
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   assert.ok(cdpReady, `Chromium DevTools did not become ready: ${chromeStderr.slice(-1500)}`);
+  assert.ok(cdpPort, "Chromium did not publish its DevTools port.");
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
   const result = await runFixtureRunner(url, {
     PATH: process.env.PATH,
