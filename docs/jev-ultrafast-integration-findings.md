@@ -48,6 +48,12 @@ The production integration must use Jev's documented goal-based library contract
 Implementation status (2026-10-09): the branch now contains a Python runner using the upstream `Agent(url, goal)` contract, a loopback-only Playwright Chromium launcher, a separate final-state check, strict loopback URL/credential gates, timeout handling, cleanup, and unit tests for missing credentials and non-loopback URLs. These changes are on the draft PR branch only. They are not production-deployed. CI status and the real local-fixture run still need verification; JEV must remain not-ready until those checks pass.
 
 
+## Network isolation hardening (2026-10-09)
+
+The Chromium adapter now installs a browser-context-wide Playwright route before Jev starts. Requests are continued only when their origin exactly matches the loopback preview; other HTTP requests are aborted. This closes the gap where a newly created page could begin navigation before a page-level CDP listener was attached. WebSocket connections are closed because they are not required for read-only visual QA. Chromium's loopback-only DevTools binding and external-DNS blocking remain additional defenses.
+
+This is a code-level safeguard, not a verified security certification. The branch still requires CI and the local fixture to pass; the fixture should be extended to prove off-origin HTTP requests and WebSocket connections are blocked before the adapter is considered complete.
+
 ## Offline browser fixture
 
 The branch now includes `scripts/test-jev-fixture.mjs` and `scripts/jev_fixture_test_runner.py`. The fixture starts a local HTTP site, launches real Playwright Chromium with loopback DevTools, stubs only Jev's decision function to avoid paid API calls, then uses the real Jev agent and Browser Harness to click an internal link. The test independently asserts that the final page URL and heading match the expected outcome.
