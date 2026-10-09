@@ -1,4 +1,7 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createServer } from "node:net";
 import { chromium, type Browser } from "playwright";
 
@@ -35,6 +38,70 @@ function reserveLoopbackPort(): Promise<number> {
       server.close(error => error ? reject(error) : resolve(port));
     });
   });
+}
+
+async function startIsolatedChromium(port: number): Promise<{ browser: Browser; process: ChildProcess; profile: string }> {
+  const profile = await mkdtemp(join(tmpdir(), "cidea-jev-chrome-"));
+  const child = spawn(chromium.executablePath(), [
+    "--headless=new",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    `--user-data-dir=${profile}`,
+    `--remote-debugging-port=${port}`,
+    "--remote-debugging-address=127.0.0.1",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-component-update",
+    "--disable-default-apps",
+    "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+    "about:blank"
+  ], { shell: false, stdio: ["ignore", "ignore", "pipe"] });
+
+  let stderr = "";
+  child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
+  try {
+    const deadline = Date.now() + 15_000;
+    let lastError = "DevTools endpoint did not become ready.";
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null) throw new Error(`Chromium exited early with code ${child.exitCode}: ${stderr.slice(-1000)}`);
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) });
+        if (response.ok) {
+          const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+          return { browser, process: child, profile };
+        }
+        lastError = `DevTools returned HTTP ${response.status}.`;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    throw new Error(`Chromium DevTools was not ready after 15 seconds: ${lastError}`);
+  } catch (error) {
+    child.kill("SIGTERM");
+    await rm(profile, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function stopIsolatedChromium(browser: Browser | undefined, child: ChildProcess | undefined, profile: string | undefined): Promise<void> {
+  if (browser) await browser.close().catch(() => undefined);
+  if (child && child.exitCode === null && child.signalCode === null) {
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        resolve();
+      }, 3000);
+      child.once("close", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      child.kill("SIGTERM");
+    });
+  }
+  if (profile) await rm(profile, { recursive: true, force: true });
 }
 
 async function guardBrowserNetwork(browser: Browser, allowedOrigin: string): Promise<void> {
@@ -164,21 +231,13 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
       if (!actions.length) throw new Error("JEV validation requires at least one requested validation action.");
       const port = await reserveLoopbackPort();
       let browser: Browser | undefined;
+      let chromiumProcess: ChildProcess | undefined;
+      let profile: string | undefined;
       try {
-        browser = await chromium.launch({
-          headless: true,
-          args: [
-            `--remote-debugging-port=${port}`,
-            "--remote-debugging-address=127.0.0.1",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-background-networking",
-            "--disable-sync",
-            "--disable-component-update",
-            "--disable-default-apps",
-            "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"
-          ]
-        });
+        const launched = await startIsolatedChromium(port);
+        browser = launched.browser;
+        chromiumProcess = launched.process;
+        profile = launched.profile;
         await guardBrowserNetwork(browser, parsedUrl.origin);
         const env: NodeJS.ProcessEnv = {
           PATH: process.env.PATH,
@@ -226,7 +285,7 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
           await page.close();
         }
       } finally {
-        if (browser) await browser.close().catch(() => undefined);
+        await stopIsolatedChromium(browser, chromiumProcess, profile);
       }
     }
   };
