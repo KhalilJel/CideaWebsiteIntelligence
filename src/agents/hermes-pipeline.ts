@@ -1,7 +1,7 @@
 import { createFirecrawlClient } from "../integrations/firecrawl.js";
 import { createAgentReachClient, type AgentReachClient } from "../integrations/agent-reach.js";
 import { createHermesLLMClient } from "../integrations/hermes-llm.js";
-import { createJEVBrowserClient, type JEVBrowserClient } from "../integrations/jev-browser.js";
+import type { JEVBrowserClient } from "../integrations/jev-browser.js";
 import { auditCandidate } from "../integrations/website-audit.js";
 import { hermesResearch } from "./hermes-research.js";
 import { reasonWithHermes, imagineWithHermes, decideAllWithHermes } from "./hermes-reasoning.js";
@@ -16,7 +16,7 @@ import { pixelJuryEnabled, runPixelJury } from "../integrations/pixeljury.js";
 import { improvementPlanToCodingTasks } from "./coding-task-generator.js";
 import { executeCodingTaskWithCursor, type CursorExecutionResult } from "./cursor-execution.js";
 import type { CodingTask } from "../domain/coding-task.js";
-import { runValidationPipeline, type ValidationPipelineResult } from "./validation-pipeline.js";
+import type { ValidationPipelineResult } from "./validation-pipeline.js";
 import { validateBrowserActions } from "./typesafe-browser.js";
 
 export type HermesPipelineInput = {
@@ -155,20 +155,12 @@ export async function runHermesPipeline(input: HermesPipelineInput): Promise<Her
   const cursorExecution = input.cursor?.enabled !== false && input.cursor?.repositoryUrl && codingTasks[0]
     ? await executeCodingTaskWithCursor(codingTasks[0], {
         repositoryUrl: input.cursor.repositoryUrl,
-        ref: input.cursor.ref
+        ref: input.cursor.ref,
+        browserActions: input.browserActions ? validateBrowserActions(input.browserActions) : []
       })
     : undefined;
 
-  const validation = cursorExecution?.status === "completed"
-    ? await runValidationPipeline(
-        input.websiteUrl,
-        input.browserActions ? validateBrowserActions(input.browserActions) : [],
-        {
-          browser: createJEVBrowserClient(),
-          pixelJuryAvailable: pixelJuryEnabled()
-        }
-      )
-    : undefined;
+  const validation = cursorExecution?.validation;
 
   return {
     research: researchWithPixelJury,
