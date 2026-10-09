@@ -102,3 +102,55 @@ test("validation pipeline is not ready when required external tools are absent",
   assert.equal(result.status, "not_ready");
   assert.ok(result.checks.every(check => check.status === "not_ready"));
 });
+
+
+test("does not pass JEV or TypeSafe when no browser client is configured", async () => {
+  const result = await runValidationPipeline(
+    "http://127.0.0.1:4173",
+    [{ type: "navigate", target: "http://127.0.0.1:4173" }],
+    {
+      pixelJuryAvailable: true,
+      pixelJuryRunner: async url => ({
+        url,
+        score: 90,
+        critique: "No critical or high-severity issues found.",
+        scoreJson: { score: 90 },
+        findings: [],
+        provider: "test",
+        collectedAt: new Date().toISOString()
+      })
+    }
+  );
+
+  assert.equal(result.status, "not_ready");
+  assert.equal(result.checks.find(check => check.name === "JEV")?.status, "not_ready");
+  assert.equal(result.checks.find(check => check.name === "TypeSafe")?.status, "not_ready");
+  assert.equal(result.checks.find(check => check.name === "PixelJury")?.status, "passed");
+});
+
+test("does not treat an empty browser action list as a successful JEV run", async () => {
+  let called = false;
+  const result = await runValidationPipeline("http://127.0.0.1:4173", [], {
+    browser: {
+      execute: async () => {
+        called = true;
+        return [];
+      }
+    },
+    pixelJuryAvailable: true,
+    pixelJuryRunner: async url => ({
+      url,
+      score: 90,
+      critique: "No critical or high-severity issues found.",
+      scoreJson: { score: 90 },
+      findings: [],
+      provider: "test",
+      collectedAt: new Date().toISOString()
+    })
+  });
+
+  assert.equal(called, false);
+  assert.equal(result.status, "not_ready");
+  assert.equal(result.checks.find(check => check.name === "JEV")?.status, "not_ready");
+  assert.equal(result.checks.find(check => check.name === "TypeSafe")?.status, "not_ready");
+});

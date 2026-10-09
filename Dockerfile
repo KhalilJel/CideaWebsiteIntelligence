@@ -1,17 +1,19 @@
 FROM node:24-bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip git curl \
+  && apt-get install -y --no-install-recommends git curl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --break-system-packages --no-cache-dir \
-  "https://github.com/Panniantong/Agent-Reach/archive/main.zip"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:/root/.cursor/bin:$PATH"
+
+RUN uv python install 3.12 \
+  && git clone --depth 1 https://github.com/browser-use/jev-ultrafast.git /opt/jev \
+  && uv sync --project /opt/jev --python 3.12
 
 RUN npm install -g mcporter \
   && mcporter config add exa https://mcp.exa.ai/mcp --scope home \
   && curl https://cursor.com/install -fsS | bash
-
-ENV PATH="/root/.local/bin:/root/.cursor/bin:$PATH"
 
 WORKDIR /app
 COPY package*.json ./

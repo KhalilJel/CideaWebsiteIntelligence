@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - runtime/cycle-3-agent-reach
+      - fix/isolated-preview-validation
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      JEV_PROJECT_DIR: /tmp/jev-ultrafast
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check patch whitespace
+        run: git diff --check
+      - name: Install uv and JEV runtime
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/uv" python install 3.12
+          git clone --depth 1 https://github.com/browser-use/jev-ultrafast.git "$JEV_PROJECT_DIR"
+          "$HOME/.local/bin/uv" sync --project "$JEV_PROJECT_DIR" --python 3.12
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run real JEV browser fixture
+        run: node --import tsx scripts/test-jev-fixture.mjs
+      - name: Check JEV fixture syntax
+        run: node --check scripts/test-jev-fixture.mjs
+      - name: Check JEV runner syntax
+        run: python3 -m py_compile scripts/jev_local_runner.py
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Tests
+        run: npm test

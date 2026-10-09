@@ -20,11 +20,15 @@ Hermes → Firecrawl / Agent Reach / JEV / PixelJury → TypeSafe → specialist
 
 ## Validation
 
-Every implementation step is documented in GitHub and gated by typecheck and automated tests before the next integration step.
+Cursor proposals are tested in a temporary clone of the target website repository. The engine installs dependencies, runs the website build, starts a local preview, and directs visual/browser validation to that preview while it is running. The live website is not used as a substitute for validating the changed code.
+
+A successful build is not the same as approval. High-severity visual findings, failed browser checks, or missing required validation keep the proposal from approval. Human approval is required before any proposed change is applied to production.
+
+See [`docs/isolated-preview-validation.md`](docs/isolated-preview-validation.md) for the validation contract and known limitations.
 
 ## Status
 
-Prototype foundation. The research, browser validation and evidence-to-improvement layers are implemented. The service is intentionally scoped to website intelligence only.
+Prototype in active completion. Isolated workspace build and preview validation are being added. JEV is not ready until a real browser service is configured and safely able to access the preview. Durable storage of proposed diffs and review evidence is implemented against PostgreSQL, but the Railway `DATABASE_URL` reference still needs to be configured and tested before it is active. The service remains scoped to website intelligence only.
 
 Railway architecture:
 

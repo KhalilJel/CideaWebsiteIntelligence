@@ -7,6 +7,21 @@ export type CursorAgentProcessResult = {
   stderr: string;
 };
 
+function cursorAgentEnvironment(): NodeJS.ProcessEnv {
+  const allowed = [
+    "PATH", "HOME", "USERPROFILE", "TMPDIR", "TEMP", "TMP",
+    "LANG", "LC_ALL", "SYSTEMROOT", "WINDIR", "CI"
+  ];
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of allowed) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  if (process.env.CURSOR_API_KEY) env.CURSOR_API_KEY = process.env.CURSOR_API_KEY;
+  env.CI = "true";
+  return env;
+}
+
 export type CursorAgentProcessRunner = (
   command: string,
   args: string[],
@@ -22,7 +37,8 @@ const defaultRunner: CursorAgentProcessRunner = (command, args, options) =>
     const child = spawn(command, args, {
       cwd: options.cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      shell: false
+      shell: false,
+      env: cursorAgentEnvironment()
     });
 
     let stdout = "";

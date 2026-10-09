@@ -38,16 +38,18 @@ export async function runValidationPipeline(
   const checks: ValidationCheck[] = [];
   let browserObservations: BrowserObservation[] = [];
 
-  if (!dependencies.browser) {
+  if (!dependencies.browser || browserActions.length === 0) {
     checks.push({
       name: "JEV",
       status: "not_ready",
-      summary: "JEV browser client is not configured."
+      summary: !dependencies.browser
+        ? "JEV browser client is not configured."
+        : "JEV validation requires at least one browser action."
     });
     checks.push({
       name: "TypeSafe",
       status: "not_ready",
-      summary: "TypeSafe validation cannot run until JEV observations are available."
+      summary: "TypeSafe validation cannot run until real JEV observations are available."
     });
   } else {
     try {

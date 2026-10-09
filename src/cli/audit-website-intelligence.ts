@@ -28,7 +28,7 @@ const validation = result.validation;
 console.log(JSON.stringify({
   target,
   websiteUrl: url,
-  baselineScore: result.baseline.score,
+  baseline: { status: result.baseline.status, flags: result.baseline.flags },
   findings: result.improvementPlan.actions.length,
   selectedAlternatives: result.improvementPlan.actions.map(action => action.decision.selectedAlternativeId),
   cursor: cursor
@@ -37,6 +37,15 @@ console.log(JSON.stringify({
         repositoryUrl: cursor.repositoryUrl,
         exitCode: cursor.cursor?.exitCode ?? null,
         diffBytes: cursor.diff?.length ?? 0,
+        reviewPersistence: cursor.reviewPersistence ?? null,
+        verification: cursor.verification ? {
+          installStatus: cursor.verification.installStatus,
+          buildStatus: cursor.verification.buildStatus,
+          previewStatus: cursor.verification.previewStatus,
+          previewUrl: cursor.verification.previewUrl ?? null,
+          error: cursor.verification.error ?? null,
+          pixelJuryScore: cursor.verification.pixelJury?.score ?? null
+        } : null,
         error: cursor.error ?? null,
         stderr: cursor.cursor?.stderr?.slice(-3000) ?? null,
         stdout: cursor.cursor?.stdout?.slice(-3000) ?? null
