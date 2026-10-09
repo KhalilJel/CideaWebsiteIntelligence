@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { chromium } from "playwright";
 
 const server = createServer((request, response) => {
@@ -67,6 +70,8 @@ function runFixtureRunner(url, env) {
 }
 
 let browser;
+let chromeProcess;
+let profile;
 try {
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -76,20 +81,40 @@ try {
   assert.ok(address && typeof address !== "string");
   const url = `http://127.0.0.1:${address.port}`;
   const cdpPort = await reservePort();
-  browser = await chromium.launch({
-    headless: true,
-    args: [
-      `--remote-debugging-port=${cdpPort}`,
-      "--remote-debugging-address=127.0.0.1",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-background-networking",
-      "--disable-sync",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"
-    ]
-  });
+  profile = await mkdtemp(join(tmpdir(), "jev-fixture-chrome-"));
+  chromeProcess = spawn(chromium.executablePath(), [
+    "--headless=new",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    `--user-data-dir=${profile}`,
+    `--remote-debugging-port=${cdpPort}`,
+    "--remote-debugging-address=127.0.0.1",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-component-update",
+    "--disable-default-apps",
+    "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+    "about:blank"
+  ], { shell: false, stdio: ["ignore", "ignore", "pipe"] });
+  let chromeStderr = "";
+  chromeProcess.stderr.on("data", chunk => { chromeStderr += chunk.toString(); });
+  const cdpDeadline = Date.now() + 15_000;
+  let cdpReady = false;
+  while (Date.now() < cdpDeadline) {
+    if (chromeProcess.exitCode !== null) throw new Error(`Chromium exited early: ${chromeStderr.slice(-1500)}`);
+    try {
+      const response = await fetch(`http://127.0.0.1:${cdpPort}/json/version`, { signal: AbortSignal.timeout(1000) });
+      if (response.ok) {
+        cdpReady = true;
+        break;
+      }
+    } catch {}
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  assert.ok(cdpReady, `Chromium DevTools did not become ready: ${chromeStderr.slice(-1500)}`);
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
   const result = await runFixtureRunner(url, {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
@@ -103,5 +128,13 @@ try {
   process.stdout.write("JEV local fixture passed: real Chromium/Browser Harness, internal click, and final page verified.\n");
 } finally {
   if (browser) await browser.close().catch(() => undefined);
+  if (chromeProcess && chromeProcess.exitCode === null && chromeProcess.signalCode === null) {
+    chromeProcess.kill("SIGTERM");
+    await new Promise(resolve => {
+      const timer = setTimeout(() => { chromeProcess.kill("SIGKILL"); resolve(undefined); }, 3000);
+      chromeProcess.once("close", () => { clearTimeout(timer); resolve(undefined); });
+    });
+  }
+  if (profile) await rm(profile, { recursive: true, force: true });
   await new Promise(resolve => server.close(() => resolve(undefined)));
 }
