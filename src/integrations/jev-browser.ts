@@ -80,8 +80,7 @@ async function startIsolatedChromium(port: number): Promise<{ browser: Browser; 
     }
     throw new Error(`Chromium DevTools was not ready after 15 seconds: ${lastError}`);
   } catch (error) {
-    child.kill("SIGTERM");
-    await rm(profile, { recursive: true, force: true });
+    await stopIsolatedChromium(undefined, child, profile);
     throw error;
   }
 }
