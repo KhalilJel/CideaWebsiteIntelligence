@@ -32,6 +32,18 @@ Every Cursor proposal must be validated against the exact changed workspace, not
 - The CI workflow initially failed before job creation because the job-level environment referenced `runner.temp`; replacing it with `/tmp/jev-ultrafast` allowed the workflow to start and pass.
 - CI validates the offline fixture, not the Railway deployment. No production deployment or DNS/MX change was made.
 
+## Railway runtime readiness (2026-10-09)
+
+Read-only inspection of the current production environment found these blockers for a live end-to-end test:
+
+- The service still deploys from `runtime/cycle-3-agent-reach`; the isolated-preview/JEV adapter changes in PR #26 are not deployed.
+- `TYPESAFE_API_KEY` is configured on the service, but `TEXT_MODEL_API_KEY` required by the new local JEV adapter is not present. The existing Hermes model key is not assumed compatible without verifying its provider and endpoint contract.
+- `DATABASE_URL` is not live. A one-variable Railway patch referencing the existing Postgres service remains staged and unaccepted; durable review-store persistence is therefore not enabled.
+- `TEXT_MODEL_BASE_URL`, `TEXT_MODEL`, and `TEXT_MODEL_REASONING` are optional in the adapter and have documented defaults; the default model/key combination still must be confirmed against the actual provider credentials.
+- The current deployed audit logs show JEV and TypeSafe as not ready, plus three high-severity PixelJury findings on the live website. These are observations from the existing deployment, not a test of PR #26.
+
+No deployment, variable acceptance, DNS/MX change, or change to another Railway service was made. The next live-runtime test must wait for an approved deployment and confirmed text-model credentials; the staged database reference must remain unaccepted until separately approved.
+
 ## Current limitations
 
 - JEV runs locally in the same worker as the preview and connects to an isolated Chromium instance through loopback CDP. The offline fixture is CI-verified; Railway end-to-end execution remains unverified. Do not replace the private preview with a public URL or a guessed hosted `/execute` endpoint.
