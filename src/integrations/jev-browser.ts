@@ -79,14 +79,20 @@ async function stopIsolatedChromium(browser: Browser | undefined, child: ChildPr
   if (browser) await browser.close().catch(() => undefined);
   if (child && child.exitCode === null && child.signalCode === null) {
     await new Promise<void>(resolve => {
-      const timer = setTimeout(() => {
+      let settled = false;
+      let reapTimer: NodeJS.Timeout | undefined;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(termTimer);
+        if (reapTimer) clearTimeout(reapTimer);
+        resolve();
+      };
+      const termTimer = setTimeout(() => {
         child.kill("SIGKILL");
-        resolve();
+        reapTimer = setTimeout(finish, 1000);
       }, 3000);
-      child.once("close", () => {
-        clearTimeout(timer);
-        resolve();
-      });
+      child.once("close", finish);
       child.kill("SIGTERM");
     });
   }
@@ -122,10 +128,23 @@ export async function guardBrowserNetwork(browser: Browser, allowedOrigin: strin
   }
 }
 
+function signalProcessTree(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (process.platform !== "win32" && child.pid !== undefined) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Fall back to signalling the direct child if its process group is gone.
+    }
+  }
+  child.kill(signal);
+}
+
 function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 90_000): Promise<JEVRunnerOutput> {
   return new Promise((resolve, reject) => {
     const child = spawn("uv", ["run", "--project", process.env.JEV_PROJECT_DIR ?? "/opt/jev", "python", "/app/scripts/jev_local_runner.py", url, goal], {
       shell: false,
+      detached: process.platform !== "win32",
       env,
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -134,8 +153,8 @@ function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 9
     let settled = false;
     let killTimer: NodeJS.Timeout | undefined;
     const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => child.kill("SIGKILL"), 3000);
+      signalProcessTree(child, "SIGTERM");
+      killTimer = setTimeout(() => signalProcessTree(child, "SIGKILL"), 3000);
       if (!settled) {
         settled = true;
         reject(new Error(`JEV timed out after ${timeoutMs}ms.`));
