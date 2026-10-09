@@ -22,7 +22,7 @@ Every Cursor proposal must be validated against the exact changed workspace, not
 - Visual and browser validation results are reported separately; a successful build does not mean the proposal is approved.
 - Human approval remains mandatory before any proposal is applied to the production website.
 - The pipeline must not substitute the live URL when an isolated preview is unavailable.
-- JEV is still considered not ready until a real `JEV_BROWSER_BASE_URL` is configured and verified.
+- JEV is still considered not ready until the local Python agent, loopback Chromium/CDP connection, required TypeSafe/text-model credentials, and offline browser fixture are verified together in CI.
 - No DNS/MX changes and no production deployment are allowed in this phase.
 
 ## Current limitations
