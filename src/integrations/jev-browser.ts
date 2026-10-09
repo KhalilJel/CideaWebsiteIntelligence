@@ -1,8 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createServer } from "node:net";
 import { chromium, type Browser } from "playwright";
 
 export type BrowserAction={type:"click"|"type"|"scroll"|"navigate"|"wait";target?:string;value?:string};
@@ -23,31 +22,14 @@ const VALIDATION_GOAL = [
   "Stop when you have inspected the page and can report whether the preview rendered coherently."
 ].join(" ");
 
-function reserveLoopbackPort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!address || typeof address === "string") {
-        server.close();
-        reject(new Error("Could not reserve a loopback DevTools port."));
-        return;
-      }
-      const port = address.port;
-      server.close(error => error ? reject(error) : resolve(port));
-    });
-  });
-}
-
-async function startIsolatedChromium(port: number): Promise<{ browser: Browser; process: ChildProcess; profile: string }> {
+async function startIsolatedChromium(): Promise<{ browser: Browser; process: ChildProcess; profile: string }> {
   const profile = await mkdtemp(join(tmpdir(), "cidea-jev-chrome-"));
   const child = spawn(chromium.executablePath(), [
     "--headless=new",
     "--no-sandbox",
     "--disable-dev-shm-usage",
     `--user-data-dir=${profile}`,
-    `--remote-debugging-port=${port}`,
+    "--remote-debugging-port=0",
     "--remote-debugging-address=127.0.0.1",
     "--no-first-run",
     "--no-default-browser-check",
@@ -67,6 +49,13 @@ async function startIsolatedChromium(port: number): Promise<{ browser: Browser; 
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error(`Chromium exited early with code ${child.exitCode}: ${stderr.slice(-1000)}`);
       try {
+        // Let Chromium atomically allocate the port and publish it in its profile.
+        // This avoids the free-port probe/bind race from reserving then releasing a port.
+        const activePort = await readFile(join(profile, "DevToolsActivePort"), "utf8");
+        const port = Number(activePort.split(/\\r?\\n/)[0]);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+          throw new Error("Chromium published an invalid DevTools port.");
+        }
         const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) });
         if (response.ok) {
           const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
@@ -226,12 +215,11 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
   return {
     async execute(actions) {
       if (!actions.length) throw new Error("JEV validation requires at least one requested validation action.");
-      const port = await reserveLoopbackPort();
       let browser: Browser | undefined;
       let chromiumProcess: ChildProcess | undefined;
       let profile: string | undefined;
       try {
-        const launched = await startIsolatedChromium(port);
+        const launched = await startIsolatedChromium();
         browser = launched.browser;
         chromiumProcess = launched.process;
         profile = launched.profile;
