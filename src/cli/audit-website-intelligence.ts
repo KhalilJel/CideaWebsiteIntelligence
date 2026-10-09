@@ -14,9 +14,14 @@ const cursorRepositoryUrl = process.argv[4] ?? process.env.CURSOR_TARGET_REPO;
 const cursorEnabled =
   process.env.CURSOR_AGENT_ENABLED === "true" && Boolean(cursorRepositoryUrl);
 
+// Always provide a minimal read-only navigation action for isolated-preview QA.
+// JEV uses this non-empty list as its validation gate and navigates to the preview URL.
+const browserActions = [{ type: "navigate" as const, target: url }];
+
 const result = await runHermesPipeline({
   target,
   websiteUrl: url,
+  browserActions,
   cursor: cursorRepositoryUrl
     ? { repositoryUrl: cursorRepositoryUrl, enabled: cursorEnabled }
     : undefined
