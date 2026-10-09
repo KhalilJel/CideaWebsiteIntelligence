@@ -28,7 +28,7 @@ const validation = result.validation;
 console.log(JSON.stringify({
   target,
   websiteUrl: url,
-  baselineScore: result.baseline.score,
+  baselineScores: result.baseline.scores,
   findings: result.improvementPlan.actions.length,
   selectedAlternatives: result.improvementPlan.actions.map(action => action.decision.selectedAlternativeId),
   cursor: cursor
