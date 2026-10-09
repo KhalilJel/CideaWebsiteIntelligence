@@ -136,7 +136,12 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
             `--remote-debugging-port=${port}`,
             "--remote-debugging-address=127.0.0.1",
             "--no-first-run",
-            "--no-default-browser-check"
+            "--no-default-browser-check",
+            "--disable-background-networking",
+            "--disable-sync",
+            "--disable-component-update",
+            "--disable-default-apps",
+            "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"
           ]
         });
         const env: NodeJS.ProcessEnv = {
@@ -154,6 +159,11 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
         const history = output.history ?? [];
         if (!history.length) throw new Error("JEV produced no executed-action history; validation fails closed.");
         if (output.status !== "done") throw new Error(`JEV did not finish successfully (status: ${output.status ?? "unknown"}).`);
+        for (const entry of history) {
+          if (typeof entry.url === "string" && new URL(entry.url).origin !== parsedUrl.origin) {
+            throw new Error("JEV left the isolated preview origin; validation fails closed.");
+          }
+        }
 
         // Independent final-state check: open the isolated preview in a separate tab.
         const page = await browser.newPage();
