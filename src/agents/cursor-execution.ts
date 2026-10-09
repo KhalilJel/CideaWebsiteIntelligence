@@ -11,6 +11,22 @@ import type { CodingTask } from "../domain/coding-task.js";
 
 type CommandResult = { exitCode: number | null; stdout: string; stderr: string };
 
+function workspaceEnvironment(): NodeJS.ProcessEnv {
+  const allowed = [
+    "PATH", "HOME", "USERPROFILE", "TMPDIR", "TEMP", "TMP",
+    "LANG", "LC_ALL", "SYSTEMROOT", "WINDIR", "CI"
+  ];
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of allowed) {
+    const value = process.env[key];
+    if (value !== undefined) env[key] = value;
+  }
+  env.GIT_TERMINAL_PROMPT = "0";
+  env.CI = "true";
+  env.NPM_CONFIG_UPDATE_NOTIFIER = "false";
+  return env;
+}
+
 function runCommand(
   command: string,
   args: string[],
@@ -21,7 +37,7 @@ function runCommand(
     const child = spawn(command, args, {
       cwd,
       shell: false,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      env: workspaceEnvironment(),
       stdio: ["ignore", "pipe", "pipe"]
     });
 
@@ -141,7 +157,7 @@ async function verifyWorkspace(
   const preview = spawn("npm", ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
     cwd: workspacePath,
     shell: false,
-    env: { ...process.env, CI: "true" },
+    env: workspaceEnvironment(),
     stdio: ["ignore", "pipe", "pipe"]
   });
 
