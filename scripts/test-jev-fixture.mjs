@@ -32,7 +32,7 @@ function reservePort() {
 
 function runFixtureRunner(url, env) {
   return new Promise((resolve, reject) => {
-    const child = spawn("uv", ["run", "--project", "/opt/jev", "python", "scripts/jev_fixture_test_runner.py", url], {
+    const child = spawn("uv", ["run", "--project", process.env.JEV_PROJECT_DIR ?? "/opt/jev", "python", "scripts/jev_fixture_test_runner.py", url], {
       shell: false,
       env,
       stdio: ["ignore", "pipe", "pipe"]
