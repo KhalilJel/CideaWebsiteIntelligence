@@ -45,4 +45,4 @@ The production integration must use Jev's documented goal-based library contract
 - Use an explicit execution timeout and always close the Jev-owned tab, Chromium process, and temporary profile in a `finally` path.
 - The current `BrowserAction[]` interface is not a compatible input contract for Jev. It must be replaced at the validation boundary with a goal string, rather than silently reinterpreting `click`/selector instructions as Jev actions.
 
-This remains a design decision, not an implemented or tested capability. Do not mark JEV ready until the local fixture test and all fail-closed tests pass.
+Implementation status (2026-10-09): the branch now contains a Python runner using the upstream `Agent(url, goal)` contract, a loopback-only Playwright Chromium launcher, a separate final-state check, strict loopback URL/credential gates, timeout handling, cleanup, and unit tests for missing credentials and non-loopback URLs. These changes are on the draft PR branch only. They are not production-deployed. CI status and the real local-fixture run still need verification; JEV must remain not-ready until those checks pass.
