@@ -37,6 +37,7 @@ console.log(JSON.stringify({
         repositoryUrl: cursor.repositoryUrl,
         exitCode: cursor.cursor?.exitCode ?? null,
         diffBytes: cursor.diff?.length ?? 0,
+        reviewPersistence: cursor.reviewPersistence ?? null,
         verification: cursor.verification ? {
           installStatus: cursor.verification.installStatus,
           buildStatus: cursor.verification.buildStatus,
