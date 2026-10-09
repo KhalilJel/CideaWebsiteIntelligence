@@ -9,11 +9,12 @@ Every Cursor proposal must be validated against the exact changed workspace, not
 1. Clone the target repository into a temporary workspace.
 2. Run Cursor Agent without committing, pushing, merging, deploying, or changing DNS/MX.
 3. Capture the working-tree diff.
-4. Install dependencies in the isolated workspace.
-5. Run the target repository's `npm run build`.
-6. Start its local preview server and wait for a successful HTTP response.
-7. Run the validation pipeline against the preview URL while the preview is alive.
-8. Stop the preview process and remove the temporary workspace unless explicitly retained for debugging.
+4. Run Cursor Agent and workspace commands with an allowlisted environment. The website workspace must not inherit Hermes, Firecrawl, JEV, TypeSafe, or other service secrets. Only the Cursor API credential required by the agent is passed to Cursor.
+5. Install dependencies in the isolated workspace.
+6. Run the target repository's `npm run build`.
+7. Start its local preview server and wait for a successful HTTP response.
+8. Run the validation pipeline against the preview URL while the preview is alive.
+9. Stop the preview process and remove the temporary workspace unless explicitly retained for debugging.
 
 ## Gate behavior
 
