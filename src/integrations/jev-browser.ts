@@ -37,6 +37,37 @@ function reserveLoopbackPort(): Promise<number> {
   });
 }
 
+async function guardBrowserNetwork(browser: Browser, allowedOrigin: string): Promise<void> {
+  const guardedPages = new WeakSet<object>();
+  const guardPage = async (page: import("playwright").Page): Promise<void> => {
+    if (guardedPages.has(page)) return;
+    guardedPages.add(page);
+    const context = page.context();
+    const session = await context.newCDPSession(page);
+    session.on("Fetch.requestPaused", async event => {
+      let allowed = false;
+      try {
+        const url = new URL(event.request.url);
+        allowed = url.origin === allowedOrigin || ["data:", "blob:", "about:"].includes(url.protocol);
+      } catch {
+        allowed = false;
+      }
+      try {
+        if (allowed) await session.send("Fetch.continueRequest", { requestId: event.requestId });
+        else await session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
+      } catch {
+        // The target may close while a request is being cancelled; fail closed.
+      }
+    });
+    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+  };
+
+  for (const context of browser.contexts()) {
+    context.on("page", page => { void guardPage(page).catch(() => undefined); });
+    for (const page of context.pages()) await guardPage(page);
+  }
+}
+
 function runJEV(url: string, goal: string, env: NodeJS.ProcessEnv, timeoutMs = 90_000): Promise<JEVRunnerOutput> {
   return new Promise((resolve, reject) => {
     const child = spawn("uv", ["run", "--project", process.env.JEV_PROJECT_DIR ?? "/opt/jev", "python", "/app/scripts/jev_local_runner.py", url, goal], {
@@ -148,6 +179,7 @@ export function createJEVBrowserClient(previewUrl?: string): JEVBrowserClient | 
             "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"
           ]
         });
+        await guardBrowserNetwork(browser, parsedUrl.origin);
         const env: NodeJS.ProcessEnv = {
           PATH: process.env.PATH,
           HOME: process.env.HOME,
