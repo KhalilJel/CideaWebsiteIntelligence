@@ -5,6 +5,13 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { guardBrowserNetwork } from "../src/integrations/jev-browser.ts";
+
+let blockedRequests = 0;
+const blockedServer = createServer((_request, response) => {
+  blockedRequests += 1;
+  response.end("This off-origin request should have been blocked.");
+});
 
 const server = createServer((request, response) => {
   response.setHeader("content-type", "text/html; charset=utf-8");
@@ -63,6 +70,14 @@ try {
   const address = server.address();
   assert.ok(address && typeof address !== "string");
   const url = `http://127.0.0.1:${address.port}`;
+  await new Promise((resolve, reject) => {
+    blockedServer.once("error", reject);
+    blockedServer.listen(0, "127.0.0.1", resolve);
+  });
+  const blockedAddress = blockedServer.address();
+  assert.ok(blockedAddress && typeof blockedAddress !== "string");
+  const blockedUrl = `http://127.0.0.1:${blockedAddress.port}/must-not-be-requested`;
+  assert.notEqual(new URL(url).origin, new URL(blockedUrl).origin);
   profile = await mkdtemp(join(tmpdir(), "jev-fixture-chrome-"));
   chromeProcess = spawn(chromium.executablePath(), [
     "--headless=new",
@@ -102,6 +117,25 @@ try {
   assert.ok(cdpReady, `Chromium DevTools did not become ready: ${chromeStderr.slice(-1500)}`);
   assert.ok(cdpPort, "Chromium did not publish its DevTools port.");
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
+  await guardBrowserNetwork(browser, new URL(url).origin);
+  const context = browser.contexts()[0];
+  assert.ok(context, "Chromium did not expose its default context.");
+  const probePage = await context.newPage();
+  try {
+    await probePage.goto(url);
+    const requestOutcome = await probePage.evaluate(async target => {
+      try {
+        await fetch(target, { cache: "no-store" });
+        return "allowed";
+      } catch {
+        return "blocked";
+      }
+    }, blockedUrl);
+    assert.equal(requestOutcome, "blocked", "Off-origin browser fetch should be blocked.");
+    assert.equal(blockedRequests, 0, "Blocked origin should not receive the request.");
+  } finally {
+    await probePage.close();
+  }
   const result = await runFixtureRunner(url, {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
@@ -124,4 +158,5 @@ try {
   }
   if (profile) await rm(profile, { recursive: true, force: true });
   await new Promise(resolve => server.close(() => resolve(undefined)));
+  await new Promise(resolve => blockedServer.close(() => resolve(undefined)));
 }
