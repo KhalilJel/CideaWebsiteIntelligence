@@ -1,0 +1,183 @@
+name: Cidea Owned Websites Readiness Audit
+
+on:
+  push:
+    branches:
+      - "feat/audit-three-cidea-sites"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-owned-sites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          npm install
+          npm install --no-save playwright
+          npx playwright install chromium
+
+      - name: Audit Cidea Leads
+        run: |
+          mkdir -p artifacts/owned-sites
+          npm run --silent audit:website -- https://cidealeads.com CideaLead "Cidea Leads" > artifacts/owned-sites/cidea-leads.json
+
+      - name: Audit Cidea Marketing
+        run: |
+          npm run --silent audit:website -- https://cideamarketing.com CideaMarketing "Cidea Marketing" > artifacts/owned-sites/cidea-marketing.json
+
+      - name: Audit Cidea Consulting
+        run: |
+          npm run --silent audit:website -- https://cideaconsulting.com CideaConsulting "Cidea Consulting" > artifacts/owned-sites/cidea-consulting.json
+
+      - name: Verify rendered pages and capture screenshots
+        run: |
+          mkdir -p artifacts/owned-sites/screenshots
+          node --input-type=module <<'NODE'
+          import { chromium } from "playwright";
+          import { writeFile } from "node:fs/promises";
+          const sites = [
+            { key: "cidea-leads", url: "https://cidealeads.com" },
+            { key: "cidea-marketing", url: "https://cideamarketing.com" },
+            { key: "cidea-consulting", url: "https://cideaconsulting.com" }
+          ];
+          const browser = await chromium.launch({ headless: true });
+          const results = [];
+          try {
+            for (const site of sites) {
+              const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+              const pageErrors = [];
+              page.on("pageerror", error => pageErrors.push(error.message));
+              const response = await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: 30000 });
+              await page.waitForTimeout(1800);
+              const rendered = await page.evaluate(() => ({
+                title: document.title,
+                description: document.querySelector('meta[name="description"]')?.content ?? "",
+                h1: [...document.querySelectorAll("h1")].map(el => el.innerText.trim()).filter(Boolean),
+                bodyText: (document.body?.innerText ?? "").slice(0, 5000),
+                links: [...document.querySelectorAll("a")].map(a => ({
+                  text: (a.innerText ?? "").trim().replace(/\s+/g, " ").slice(0, 120),
+                  href: a.href
+                })).filter(a => a.text || a.href),
+                forms: document.querySelectorAll("form").length,
+                horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth
+              }));
+              await page.screenshot({ path: `artifacts/owned-sites/screenshots/${site.key}-desktop.png`, fullPage: true });
+              await page.setViewportSize({ width: 390, height: 844 });
+              await page.waitForTimeout(300);
+              await page.screenshot({ path: `artifacts/owned-sites/screenshots/${site.key}-mobile.png`, fullPage: true });
+              results.push({
+                site: site.key,
+                url: site.url,
+                httpStatus: response?.status() ?? null,
+                ...rendered,
+                pageErrors
+              });
+              await page.close();
+            }
+          } finally {
+            await browser.close();
+          }
+          await writeFile("artifacts/owned-sites/rendered-browser-audit.json", JSON.stringify({ auditedAt: new Date().toISOString(), results }, null, 2) + "\n");
+          console.log(JSON.stringify(results.map(r => ({
+            site: r.site,
+            httpStatus: r.httpStatus,
+            h1Count: r.h1.length,
+            linkCount: r.links.length,
+            forms: r.forms,
+            horizontalOverflow: r.horizontalOverflow,
+            pageErrors: r.pageErrors.length
+          })), null, 2));
+          NODE
+
+      - name: Verify direct routes and detect SPA fallback pages
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from "playwright";
+          import { readFile, writeFile } from "node:fs/promises";
+          const sites = [
+            { key: "cidea-leads", base: "https://cidealeads.com", routes: [
+              "/", "/b2b-leads", "/how-it-works", "/blog",
+              "/blog/hva-er-leadgenerering", "/blog/hva-er-en-kvalifisert-lead", "/blog/b2b-leadgenerering",
+              "/qualified-leads", "/lead-generation", "/custom-lead-generation"
+            ]},
+            { key: "cidea-marketing", base: "https://cideamarketing.com", routes: [
+              "/", "/websites", "/branding", "/seo", "/digital-marketing", "/blog",
+              "/blog/hva-bor-en-god-bedriftsnettside-inneholde", "/blog/hvorfor-vises-ikke-nettsiden-pa-google",
+              "/blog/hvor-mye-koster-en-nettside", "/blog/hvordan-fa-flere-henvendelser-fra-nettsiden"
+            ]},
+            { key: "cidea-consulting", base: "https://cideaconsulting.com", routes: [
+              "/", "/ai-opportunity", "/ai-opportunity-reports", "/ai-business-workshops", "/ai-implementation",
+              "/ai-agent-systems", "/blog", "/blog/hvor-kan-ai-skape-verdi-i-en-bedrift", "/blog/ai-agent-vs-chatbot",
+              "/blog/hvordan-finne-gode-ai-use-cases", "/blog/hvordan-beregne-roi-pa-ai"
+            ]}
+          ];
+          const browser = await chromium.launch({ headless: true });
+          const results = [];
+          try {
+            for (const site of sites) {
+              const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+              for (const route of site.routes) {
+                const errors = [];
+                const onError = error => errors.push(error.message);
+                page.on("pageerror", onError);
+                let status = null;
+                let title = "";
+                let h1 = [];
+                let text = "";
+                try {
+                  const response = await page.goto(site.base + route, { waitUntil: "domcontentloaded", timeout: 30000 });
+                  status = response?.status() ?? null;
+                  await page.waitForTimeout(900);
+                  const data = await page.evaluate(() => ({
+                    title: document.title,
+                    h1: [...document.querySelectorAll("h1")].map(el => el.innerText.trim()).filter(Boolean),
+                    text: (document.body?.innerText ?? "").replace(/\\s+/g, " ").trim().slice(0, 1200)
+                  }));
+                  title = data.title;
+                  h1 = data.h1;
+                  text = data.text;
+                } catch (error) {
+                  errors.push(String(error));
+                }
+                page.off("pageerror", onError);
+                results.push({
+                  site: site.key, route, status, title, h1, textLength: text.length,
+                  looksLikeEmptyFallback: text.length < 80 || h1.length === 0,
+                  pageErrors: errors
+                });
+              }
+              await page.close();
+            }
+          } finally {
+            await browser.close();
+          }
+          await writeFile("artifacts/owned-sites/direct-route-audit.json", JSON.stringify({ auditedAt: new Date().toISOString(), results }, null, 2) + "\\n");
+          console.log(JSON.stringify({
+            checked: results.length,
+            non200: results.filter(r => r.status !== 200),
+            suspicious: results.filter(r => r.looksLikeEmptyFallback),
+            pageErrors: results.filter(r => r.pageErrors.length)
+          }, null, 2));
+          const failures = results.filter(r => r.status !== 200 || r.looksLikeEmptyFallback || r.pageErrors.length);
+          if (failures.length) process.exitCode = 1;
+          NODE
+
+      - name: Upload read-only audit reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cidea-owned-sites-readiness-audit
+          path: artifacts/owned-sites/
+          retention-days: 3
