@@ -1,0 +1,46 @@
+name: Cidea Owned Websites Readiness Audit
+
+on:
+  push:
+    branches:
+      - "feat/audit-three-cidea-sites"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-owned-sites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Audit Cidea Leads
+        run: |
+          mkdir -p artifacts/owned-sites
+          npm run --silent audit:website -- https://cidealeads.com CideaLead "Cidea Leads" > artifacts/owned-sites/cidea-leads.json
+
+      - name: Audit Cidea Marketing
+        run: |
+          npm run --silent audit:website -- https://cideamarketing.com CideaMarketing "Cidea Marketing" > artifacts/owned-sites/cidea-marketing.json
+
+      - name: Audit Cidea Consulting
+        run: |
+          npm run --silent audit:website -- https://cideaconsulting.com CideaConsulting "Cidea Consulting" > artifacts/owned-sites/cidea-consulting.json
+
+      - name: Upload read-only audit reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: cidea-owned-sites-readiness-audit
+          path: artifacts/owned-sites/*.json
+          retention-days: 3
