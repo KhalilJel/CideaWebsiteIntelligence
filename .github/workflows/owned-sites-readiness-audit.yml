@@ -175,6 +175,7 @@ jobs:
           NODE
 
       - name: Upload read-only audit reports and screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cidea-owned-sites-readiness-audit
