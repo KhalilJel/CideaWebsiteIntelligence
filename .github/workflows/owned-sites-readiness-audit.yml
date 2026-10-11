@@ -101,6 +101,79 @@ jobs:
           })), null, 2));
           NODE
 
+      - name: Verify direct routes and detect SPA fallback pages
+        run: |
+          node --input-type=module <<'NODE'
+          import { chromium } from "playwright";
+          import { readFile, writeFile } from "node:fs/promises";
+          const sites = [
+            { key: "cidea-leads", base: "https://cidealeads.com", routes: [
+              "/", "/b2b-leads", "/how-it-works", "/blog",
+              "/blog/hva-er-leadgenerering", "/blog/hva-er-en-kvalifisert-lead", "/blog/b2b-leadgenerering",
+              "/qualified-leads", "/lead-generation", "/custom-lead-generation"
+            ]},
+            { key: "cidea-marketing", base: "https://cideamarketing.com", routes: [
+              "/", "/websites", "/branding", "/seo", "/digital-marketing", "/blog",
+              "/blog/hva-bor-en-god-bedriftsnettside-inneholde", "/blog/hvorfor-vises-ikke-nettsiden-pa-google",
+              "/blog/hvor-mye-koster-en-nettside", "/blog/hvordan-fa-flere-henvendelser-fra-nettsiden"
+            ]},
+            { key: "cidea-consulting", base: "https://cideaconsulting.com", routes: [
+              "/", "/ai-opportunity", "/ai-opportunity-reports", "/ai-business-workshops", "/ai-implementation",
+              "/ai-agent-systems", "/blog", "/blog/hvor-kan-ai-skape-verdi-i-en-bedrift", "/blog/ai-agent-vs-chatbot",
+              "/blog/hvordan-finne-gode-ai-use-cases", "/blog/hvordan-beregne-roi-pa-ai"
+            ]}
+          ];
+          const browser = await chromium.launch({ headless: true });
+          const results = [];
+          try {
+            for (const site of sites) {
+              const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+              for (const route of site.routes) {
+                const errors = [];
+                const onError = error => errors.push(error.message);
+                page.on("pageerror", onError);
+                let status = null;
+                let title = "";
+                let h1 = [];
+                let text = "";
+                try {
+                  const response = await page.goto(site.base + route, { waitUntil: "domcontentloaded", timeout: 30000 });
+                  status = response?.status() ?? null;
+                  await page.waitForTimeout(900);
+                  const data = await page.evaluate(() => ({
+                    title: document.title,
+                    h1: [...document.querySelectorAll("h1")].map(el => el.innerText.trim()).filter(Boolean),
+                    text: (document.body?.innerText ?? "").replace(/\\s+/g, " ").trim().slice(0, 1200)
+                  }));
+                  title = data.title;
+                  h1 = data.h1;
+                  text = data.text;
+                } catch (error) {
+                  errors.push(String(error));
+                }
+                page.off("pageerror", onError);
+                results.push({
+                  site: site.key, route, status, title, h1, textLength: text.length,
+                  looksLikeEmptyFallback: text.length < 80 || h1.length === 0,
+                  pageErrors: errors
+                });
+              }
+              await page.close();
+            }
+          } finally {
+            await browser.close();
+          }
+          await writeFile("artifacts/owned-sites/direct-route-audit.json", JSON.stringify({ auditedAt: new Date().toISOString(), results }, null, 2) + "\\n");
+          console.log(JSON.stringify({
+            checked: results.length,
+            non200: results.filter(r => r.status !== 200),
+            suspicious: results.filter(r => r.looksLikeEmptyFallback),
+            pageErrors: results.filter(r => r.pageErrors.length)
+          }, null, 2));
+          const failures = results.filter(r => r.status !== 200 || r.looksLikeEmptyFallback || r.pageErrors.length);
+          if (failures.length) process.exitCode = 1;
+          NODE
+
       - name: Upload read-only audit reports and screenshots
         uses: actions/upload-artifact@v4
         with:
