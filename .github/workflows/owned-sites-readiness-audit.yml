@@ -12,7 +12,7 @@ permissions:
 jobs:
   audit-owned-sites:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -23,7 +23,10 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          npm install --no-save playwright
+          npx playwright install chromium
 
       - name: Audit Cidea Leads
         run: |
@@ -38,9 +41,69 @@ jobs:
         run: |
           npm run --silent audit:website -- https://cideaconsulting.com CideaConsulting "Cidea Consulting" > artifacts/owned-sites/cidea-consulting.json
 
-      - name: Upload read-only audit reports
+      - name: Verify rendered pages and capture screenshots
+        run: |
+          mkdir -p artifacts/owned-sites/screenshots
+          node --input-type=module <<'NODE'
+          import { chromium } from "playwright";
+          import { writeFile } from "node:fs/promises";
+          const sites = [
+            { key: "cidea-leads", url: "https://cidealeads.com" },
+            { key: "cidea-marketing", url: "https://cideamarketing.com" },
+            { key: "cidea-consulting", url: "https://cideaconsulting.com" }
+          ];
+          const browser = await chromium.launch({ headless: true });
+          const results = [];
+          try {
+            for (const site of sites) {
+              const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+              const pageErrors = [];
+              page.on("pageerror", error => pageErrors.push(error.message));
+              const response = await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: 30000 });
+              await page.waitForTimeout(1800);
+              const rendered = await page.evaluate(() => ({
+                title: document.title,
+                description: document.querySelector('meta[name="description"]')?.content ?? "",
+                h1: [...document.querySelectorAll("h1")].map(el => el.innerText.trim()).filter(Boolean),
+                bodyText: (document.body?.innerText ?? "").slice(0, 5000),
+                links: [...document.querySelectorAll("a")].map(a => ({
+                  text: (a.innerText ?? "").trim().replace(/\\s+/g, " ").slice(0, 120),
+                  href: a.href
+                })).filter(a => a.text || a.href),
+                forms: document.querySelectorAll("form").length,
+                horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth
+              }));
+              await page.screenshot({ path: `artifacts/owned-sites/screenshots/${site.key}-desktop.png`, fullPage: true });
+              await page.setViewportSize({ width: 390, height: 844 });
+              await page.waitForTimeout(300);
+              await page.screenshot({ path: `artifacts/owned-sites/screenshots/${site.key}-mobile.png`, fullPage: true });
+              results.push({
+                site: site.key,
+                url: site.url,
+                httpStatus: response?.status() ?? null,
+                ...rendered,
+                pageErrors
+              });
+              await page.close();
+            }
+          } finally {
+            await browser.close();
+          }
+          await writeFile("artifacts/owned-sites/rendered-browser-audit.json", JSON.stringify({ auditedAt: new Date().toISOString(), results }, null, 2) + "\\n");
+          console.log(JSON.stringify(results.map(r => ({
+            site: r.site,
+            httpStatus: r.httpStatus,
+            h1Count: r.h1.length,
+            linkCount: r.links.length,
+            forms: r.forms,
+            horizontalOverflow: r.horizontalOverflow,
+            pageErrors: r.pageErrors.length
+          })), null, 2));
+          NODE
+
+      - name: Upload read-only audit reports and screenshots
         uses: actions/upload-artifact@v4
         with:
           name: cidea-owned-sites-readiness-audit
-          path: artifacts/owned-sites/*.json
+          path: artifacts/owned-sites/
           retention-days: 3
