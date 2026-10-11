@@ -67,7 +67,7 @@ jobs:
                 h1: [...document.querySelectorAll("h1")].map(el => el.innerText.trim()).filter(Boolean),
                 bodyText: (document.body?.innerText ?? "").slice(0, 5000),
                 links: [...document.querySelectorAll("a")].map(a => ({
-                  text: (a.innerText ?? "").trim().replace(/\\s+/g, " ").slice(0, 120),
+                  text: (a.innerText ?? "").trim().replace(/\s+/g, " ").slice(0, 120),
                   href: a.href
                 })).filter(a => a.text || a.href),
                 forms: document.querySelectorAll("form").length,
@@ -89,7 +89,7 @@ jobs:
           } finally {
             await browser.close();
           }
-          await writeFile("artifacts/owned-sites/rendered-browser-audit.json", JSON.stringify({ auditedAt: new Date().toISOString(), results }, null, 2) + "\\n");
+          await writeFile("artifacts/owned-sites/rendered-browser-audit.json", JSON.stringify({ auditedAt: new Date().toISOString(), results }, null, 2) + "\n");
           console.log(JSON.stringify(results.map(r => ({
             site: r.site,
             httpStatus: r.httpStatus,
